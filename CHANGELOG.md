@@ -2,6 +2,15 @@
 
 All notable changes to BioReviewPy will be documented in this file.
 
+## [0.23.1] - 2026-09-20
+
+### Fixed
+- Added the main `BioReviewPy.py` source file to the public repository and release workflow.
+- Updated software version metadata for consistency across the source code and citation files.
+
+### Notes
+- This is a corrective release of v0.23. No changes were made to the core deduplication, screening, or bibliographic processing algorithms.
+
 ## [0.23] - 2026-09-20
 
 ### Added
