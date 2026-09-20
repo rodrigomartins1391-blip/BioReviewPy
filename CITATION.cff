@@ -6,11 +6,9 @@ authors:
   - family-names: "Martins dos Santos"
     given-names: "Rodrigo"
     email: "rodrigoms13@hotmail.com"
-version: "0.23"
+version: "0.23.1"
 date-released: 2026-09-20
 repository-code: "https://github.com/rodrigomartins1391-blip/BioReviewPy"
-doi: "10.5281/zenodo.22865427"
-url: "https://doi.org/10.5281/zenodo.22865427"
 license: MIT
 keywords:
   - systematic review
