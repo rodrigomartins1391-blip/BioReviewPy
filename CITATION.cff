@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use BioReviewPy in your research, please cite this software and the DOI of the corresponding archived release."
+title: "BioReviewPy"
+type: software
+authors:
+  - family-names: "Martins dos Santos"
+    given-names: "Rodrigo"
+    email: "rodrigoms13@hotmail.com"
+version: "0.23"
+date-released: 2026-09-20
+repository-code: "https://github.com/rodrigomartins1391-blip/BioReviewPy"
+license: MIT
+keywords:
+  - systematic review
+  - meta-analysis
+  - evidence synthesis
+  - bibliographic databases
+  - metadata harmonization
+  - duplicate detection
+  - deduplication
+  - screening
+  - PRISMA
+  - Python
+abstract: >-
+  BioReviewPy is an open-source Python application designed to support
+  bibliographic data management and evidence-synthesis workflows. It integrates
+  bibliographic file importation, metadata harmonization, duplicate detection,
+  manual verification of uncertain matches, record classification, screening
+  support, audit tracking, and export of cleaned datasets within a
+  semi-automated and auditable workflow.

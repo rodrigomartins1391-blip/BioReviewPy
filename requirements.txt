@@ -1,0 +1,7 @@
+pandas
+rapidfuzz
+openpyxl
+Pillow
+pypdf
+PyMuPDF
+xlrd
