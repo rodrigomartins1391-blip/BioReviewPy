@@ -1,5 +1,7 @@
 # BioReviewPy
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22865427.svg)](https://doi.org/10.5281/zenodo.22865427)
+
 **BioReviewPy** is an open-source Python application designed to support bibliographic data management and screening workflows in biomedical systematic reviews and evidence-synthesis projects.
 
 The software integrates bibliographic file importation, metadata harmonization, duplicate detection, manual verification of uncertain matches, record classification, screening support, audit tracking, and export of cleaned datasets within a single workflow. Its deduplication strategy is intentionally conservative: uncertain matches are retained for researcher review rather than being automatically deleted.
@@ -63,9 +65,13 @@ Some import formats use optional local components or libraries. In particular, P
 
 ## Citation
 
-If you use BioReviewPy in research, please cite the software using the metadata provided in [`CITATION.cff`](CITATION.cff) and the DOI of the archived software release once available.
+If you use BioReviewPy in research, please cite the archived software release:
 
-The release DOI generated through Zenodo will be added to this README and to the citation metadata after the first archived release.
+**Martins dos Santos, R. (2026). BioReviewPy (Version 0.23) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22865427**
+
+DOI: **10.5281/zenodo.22865427**
+
+Citation metadata are also provided in [`CITATION.cff`](CITATION.cff).
 
 ## License
 

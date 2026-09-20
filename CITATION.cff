@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use BioReviewPy in your research, please cite this software and the DOI of the corresponding archived release."
+message: "If you use BioReviewPy in your research, please cite the archived software release below."
 title: "BioReviewPy"
 type: software
 authors:
@@ -9,6 +9,8 @@ authors:
 version: "0.23"
 date-released: 2026-09-20
 repository-code: "https://github.com/rodrigomartins1391-blip/BioReviewPy"
+doi: "10.5281/zenodo.22865427"
+url: "https://doi.org/10.5281/zenodo.22865427"
 license: MIT
 keywords:
   - systematic review
