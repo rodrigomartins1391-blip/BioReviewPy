@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-BioReviewPy v0.23
+BioReviewPy v0.23.1
 
 Open-source software for bibliographic data harmonization, duplicate detection,
 screening support, audit tracking, and evidence-synthesis workflows.
