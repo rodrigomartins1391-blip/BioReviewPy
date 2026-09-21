@@ -9,6 +9,8 @@ authors:
 version: "0.23.1"
 date-released: 2026-09-20
 repository-code: "https://github.com/rodrigomartins1391-blip/BioReviewPy"
+doi: "10.5281/zenodo.22865556"
+url: "https://doi.org/10.5281/zenodo.22865556"
 license: MIT
 keywords:
   - systematic review
