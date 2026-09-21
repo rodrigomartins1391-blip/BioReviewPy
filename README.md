@@ -67,9 +67,9 @@ Some import formats use optional local components or libraries. In particular, P
 
 If you use BioReviewPy in research, please cite the archived software release:
 
-**Martins dos Santos, R. (2026). BioReviewPy (Version 0.23) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22865427**
+**Martins dos Santos, R. (2026). BioReviewPy (Version 0.23) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22865556**
 
-DOI: **10.5281/zenodo.22865427**
+DOI: **10.5281/zenodo.22865556**
 
 Citation metadata are also provided in [`CITATION.cff`](CITATION.cff).
 
