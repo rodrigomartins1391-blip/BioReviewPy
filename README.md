@@ -27,6 +27,7 @@ The software integrates bibliographic file importation, metadata harmonization, 
 | Database | Recognized/importable formats |
 |---|---|
 | PubMed | NBIB, TXT, CSV |
+| ERIC | NBIB |
 | Web of Science | TXT/CIW, RIS, CSV, XLSX, XLS, HTML, BIB |
 | Scopus | TXT, RIS, CSV, BIB |
 | Embase | RIS, TXT, CSV, XML, DOCX, XLSX, PDF |
@@ -48,7 +49,7 @@ BioReviewPy attempts to identify the source database and compatible file structu
 
 ## Current version
 
-Current development version: **0.23**
+Current development version: **0.24.0**
 
 BioReviewPy is under active development. The version used in scientific validation and the corresponding archived release should be cited to ensure reproducibility.
 
@@ -67,9 +68,9 @@ Some import formats use optional local components or libraries. In particular, P
 
 If you use BioReviewPy in research, please cite the archived software release:
 
-**Martins dos Santos, R. (2026). BioReviewPy (Version 0.23) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22865556**
+**Martins dos Santos, R. (2026). BioReviewPy (Version 0.24.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22865427**
 
-DOI: **10.5281/zenodo.22865556**
+DOI (all versions): **10.5281/zenodo.22865427**
 
 Citation metadata are also provided in [`CITATION.cff`](CITATION.cff).
 
