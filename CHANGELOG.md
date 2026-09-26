@@ -2,6 +2,22 @@
 
 All notable changes to BioReviewPy will be documented in this file.
 
+## [0.24.0] - 2026-09-26
+
+### Added
+- Native support for ERIC (Education Resources Information Center) exports in `.nbib` format.
+- Automatic distinction between ERIC NBIB files and PubMed/MEDLINE NBIB files.
+- Dedicated parsing of ERIC identifiers (`EJ` and `ED`), titles, authors, abstracts, journals, publication years, and DOIs.
+- Support for loading multiple ERIC export batches and combining them into a single ERIC dataset.
+- Protection against duplicate ERIC records when export batches overlap.
+
+### Changed
+- Updated database identification and export handling to include ERIC.
+- Updated software version metadata to 0.24.0.
+
+### Notes
+- This release is especially useful for ERIC searches exported in multiple batches.
+
 ## [0.23.1] - 2026-09-20
 
 ### Fixed
