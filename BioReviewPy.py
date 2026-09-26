@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-BioReviewPy v0.23.1
+BioReviewPy v0.24.0
 
 Open-source software for bibliographic data harmonization, duplicate detection,
 screening support, audit tracking, and evidence-synthesis workflows.
@@ -28,7 +28,7 @@ Campos principais:
 Autores | Título | Revista | Ano | DOI
 
 Bases:
-PubMed, Scopus, Web of Science, Embase, LILACS/BVS,
+PubMed, ERIC, Scopus, Web of Science, Embase, LILACS/BVS,
 Cochrane Library, SciELO e Outra.
 
 O parser Embase reconhece também o formato:
@@ -73,7 +73,7 @@ import pandas as pd
 from rapidfuzz import fuzz, process
 
 APP_TITLE = "BioReviewPy"
-VERSION = "0.23"
+VERSION = "0.24.0"
 AUTHOR_NAME = "Rodrigo Martins dos Santos"
 AUTHOR_EMAIL = "rodrigoms13@hotmail.com"
 COPYRIGHT_NOTICE = "Copyright © 2026 Rodrigo Martins dos Santos"
@@ -127,7 +127,7 @@ UI_TEXT = {
     "clear_all": {"pt": "Limpar tudo", "en": "Clear all", "es": "Limpiar todo"},
     "process": {"pt": "PROCESSAR", "en": "PROCESS", "es": "PROCESAR"},
     "auto_detection_note": {
-        "pt": "Detecção automática de base e formato. Bases suportadas: PubMed, Web of Science, Scopus, Embase, LILACS/BVS, Cochrane Library e SciELO. Formatos comuns: RIS, BibTeX, NBIB, TXT/CIW, CSV, XML, DOCX/XLSX, HTML e PDF.",
+        "pt": "Detecção automática de base e formato. Bases suportadas: PubMed, ERIC, Web of Science, Scopus, Embase, LILACS/BVS, Cochrane Library e SciELO. Formatos comuns: RIS, BibTeX, NBIB, TXT/CIW, CSV, XML, DOCX/XLSX, HTML e PDF.",
         "en": "Automatic database and format detection. Supported databases: PubMed, Web of Science, Scopus, Embase, LILACS/BVS, Cochrane Library and SciELO. Common formats: RIS, BibTeX, NBIB, TXT/CIW, CSV, XML, DOCX/XLSX, HTML and PDF.",
         "es": "Detección automática de base y formato. Bases compatibles: PubMed, Web of Science, Scopus, Embase, LILACS/BVS, Cochrane Library y SciELO. Formatos comunes: RIS, BibTeX, NBIB, TXT/CIW, CSV, XML, DOCX/XLSX, HTML y PDF."
     },
@@ -178,6 +178,7 @@ UI_TEXT = {
 DATABASE_UI_NAMES = {
     "Automático": {"pt": "Automático", "en": "Automatic", "es": "Automático"},
     "PubMed": {"pt": "PubMed", "en": "PubMed", "es": "PubMed"},
+    "ERIC": {"pt": "ERIC", "en": "ERIC", "es": "ERIC"},
     "Scopus": {"pt": "Scopus", "en": "Scopus", "es": "Scopus"},
     "Web of Science": {"pt": "Web of Science", "en": "Web of Science", "es": "Web of Science"},
     "Embase": {"pt": "Embase", "en": "Embase", "es": "Embase"},
@@ -493,6 +494,8 @@ MESSAGE_UI_TEXT = {
     "Nenhum registro foi reconhecido no layout vertical do Embase.": {"en":"No records were recognized in the Embase vertical layout.", "es":"No se reconoció ningún registro en el diseño vertical de Embase."},
     "XML não reconhecido como exportação do Embase.": {"en":"XML was not recognized as an Embase export.", "es":"El XML no se reconoció como exportación de Embase."},
     "Arquivo não reconhecido como PubMed NBIB/MEDLINE.": {"en":"File was not recognized as PubMed NBIB/MEDLINE.", "es":"El archivo no se reconoció como PubMed NBIB/MEDLINE."},
+    "Arquivo não reconhecido como ERIC NBIB.": {"en":"File was not recognized as ERIC NBIB.", "es":"El archivo no se reconoció como ERIC NBIB."},
+    "Nenhum registro ERIC foi reconhecido.": {"en":"No ERIC records were recognized.", "es":"No se reconoció ningún registro ERIC."},
     "Formato PubMed Summary (text) não reconhecido.": {"en":"PubMed Summary (text) format was not recognized.", "es":"No se reconoció el formato PubMed Summary (text)."},
     "Nenhum registro PubMed Summary foi reconhecido.": {"en":"No PubMed Summary records were recognized.", "es":"No se reconoció ningún registro PubMed Summary."},
     "Formato PubMed PMID não reconhecido.": {"en":"PubMed PMID format was not recognized.", "es":"No se reconoció el formato PubMed PMID."},
@@ -536,6 +539,7 @@ MESSAGE_UI_TEXT = {
 DATABASES = [
     "Automático",
     "PubMed",
+    "ERIC",
     "Scopus",
     "Web of Science",
     "Embase",
@@ -550,6 +554,7 @@ DATABASES = [
 # sinalização própria e, portanto, não perdem sua cor informativa.
 DATABASE_EXPORT_COLORS = {
     "PubMed": "DDEBF7",          # azul claro
+    "ERIC": "E2F0D9",            # verde claro
     "Web of Science": "E4DFEC", # lilás claro
     "Scopus": "FCE4D6",          # laranja claro
     "Embase": "F4CCCC",          # rosa claro
@@ -1466,6 +1471,67 @@ def parse_embase_xml(path):
     if not records:
         raise RuntimeError("XML não reconhecido como exportação do Embase.")
     return records
+
+def parse_eric_nbib(path):
+    """Reconhece a exportação ERIC em formato NBIB/MEDLINE-like.
+
+    O ERIC usa blocos iniciados por ``OWN - ERIC`` e campos como TI, AU,
+    OT, JT, OID, DP, AID e LID. O parser preserva o identificador ERIC
+    (EJ/ED) em ``id_origem`` e extrai DOI quando disponível.
+    """
+    text = Path(path).read_text(encoding="utf-8-sig", errors="replace")
+    starts = [m.start() for m in re.finditer(r"(?m)^OWN\s*-\s*ERIC\s*$", text)]
+
+    if not starts:
+        raise RuntimeError("Arquivo não reconhecido como ERIC NBIB.")
+
+    records = []
+    for i, start in enumerate(starts):
+        end = starts[i + 1] if i + 1 < len(starts) else len(text)
+        block = text[start:end]
+        fields = defaultdict(list)
+        current = None
+
+        for line in block.splitlines():
+            m = re.match(r"^([A-Z0-9]{2,4})\s*-\s?(.*)$", line)
+            if m:
+                current = m.group(1)
+                fields[current].append(m.group(2).strip())
+            elif current and (line.startswith("  ") or line.startswith("      ")):
+                if fields[current]:
+                    fields[current][-1] += " " + line.strip()
+
+        title = " ".join(fields.get("TI", []))
+        authors = fields.get("AU", [])
+        eric_id = (fields.get("OID") or [""])[0]
+        if not eric_id:
+            lid = " ".join(fields.get("LID", []))
+            m_id = re.search(r"(?:id=)?((?:EJ|ED)\d+)", lid, flags=re.I)
+            eric_id = m_id.group(1).upper() if m_id else str(i + 1)
+
+        doi = ""
+        for item in fields.get("AID", []) + fields.get("LID", []):
+            candidate = normalize_doi(item)
+            if candidate.startswith("10."):
+                doi = candidate
+                break
+
+        records.append({
+            "base": "ERIC",
+            "arquivo": Path(path).name,
+            "id_origem": eric_id,
+            "autores": "; ".join(authors),
+            "titulo": title,
+            "resumo": " ".join(fields.get("AB", [])),
+            "revista": (fields.get("JT") or [""])[0],
+            "ano": (fields.get("DP") or [""])[0],
+            "doi": doi,
+        })
+
+    if not records:
+        raise RuntimeError("Nenhum registro ERIC foi reconhecido.")
+    return records
+
 
 def parse_pubmed(path):
     text = Path(path).read_text(encoding="utf-8-sig", errors="replace")
@@ -2466,6 +2532,8 @@ def detect_database_and_format(path, selected_database="Automático"):
             except Exception:
                 return requested, "Texto"
         if ext == ".nbib":
+            if requested == "ERIC":
+                return requested, "ERIC NBIB"
             return requested, "PubMed PubMed/MEDLINE"
         if ext == ".ris":
             labels = {
@@ -2510,7 +2578,12 @@ def detect_database_and_format(path, selected_database="Automático"):
         return requested, ext.lstrip(".").upper() or "Outro"
 
     if ext == ".nbib":
-        return "PubMed", "PubMed PubMed/MEDLINE"
+        content = path.read_text(encoding="utf-8-sig", errors="replace")
+        if re.search(r"(?m)^OWN\s*-\s*ERIC\s*$", content):
+            return "ERIC", "ERIC NBIB"
+        if re.search(r"(?m)^PMID-\s*\d+", content):
+            return "PubMed", "PubMed PubMed/MEDLINE"
+        return "Outra", "NBIB não identificado"
     if ext == ".ciw":
         return "Web of Science", "Web of Science Plain Text"
 
@@ -2736,6 +2809,9 @@ def detect_text_format(path, selected_database):
     ):
         return "Embase RECORD/TITLE TXT"
 
+    if selected_database == "ERIC" and re.search(r"(?m)^OWN\s*-\s*ERIC\s*$", content):
+        return "ERIC NBIB/TXT"
+
     if selected_database == "PubMed":
         if re.search(r"(?m)^PMID-\s*\d+", content):
             return "PubMed PubMed/MEDLINE"
@@ -2754,6 +2830,8 @@ def detect_text_format(path, selected_database):
     ):
         return "Web of Science Plain Text"
 
+    if re.search(r"(?m)^OWN\s*-\s*ERIC\s*$", content):
+        return "ERIC NBIB/TXT"
     if re.search(r"(?m)^PMID-\s*\d+", content):
         return "PubMed PubMed/MEDLINE"
     if header_cells and ({"pt", "ti", "so", "ut"}.issubset(header_cells)
@@ -3466,6 +3544,9 @@ def parse_txt_generic(path, selected_database):
     if detected in {"LILACS/BVS Citação", "LILACS/BVS referências por linha"}:
         return parse_lilacs_reference_lines(path)
 
+    if detected in {"ERIC NBIB", "ERIC NBIB/TXT"}:
+        return parse_eric_nbib(path)
+
     if detected == "PubMed PubMed/MEDLINE":
         return parse_pubmed(path)
     if detected == "PubMed Summary (text)":
@@ -3518,7 +3599,10 @@ def parse_file(path, selected_database):
             records = parse_ris(path)
 
     elif ext == ".nbib":
-        records = parse_pubmed(path)
+        if selected_database == "ERIC":
+            records = parse_eric_nbib(path)
+        else:
+            records = parse_pubmed(path)
 
     elif ext == ".csv":
         if selected_database == "Embase":
@@ -5192,7 +5276,7 @@ class SimpleReviewApp(tk.Tk):
                 ),
                 ("BibTeX", "*.bib"),
                 ("RIS", "*.ris"),
-                ("PubMed NBIB", "*.nbib"),
+                ("NBIB (PubMed / ERIC)", "*.nbib"),
                 ("Texto", "*.txt *.ciw"),
                 ("CSV", "*.csv"),
                 ("XML", "*.xml"),
@@ -5374,6 +5458,7 @@ class SimpleReviewApp(tk.Tk):
 
         records_by_base = defaultdict(list)
         errors = []
+        chunk_duplicates_removed = defaultdict(int)
 
         total_files = max(
             1,
@@ -5439,6 +5524,19 @@ class SimpleReviewApp(tk.Tk):
                 )
             )
 
+            # O ERIC exporta resultados em lotes (tipicamente até 200 por arquivo).
+            # Todos os lotes carregados são tratados como uma única base lógica.
+            # Se houver sobreposição acidental entre lotes, o identificador ERIC
+            # canônico (EJ/ED) evita contagem duplicada dentro da própria base.
+            if database == "ERIC":
+                ids = df["id_origem"].astype(str).str.strip().str.upper()
+                canonical = ids.str.match(r"^(?:EJ|ED)\d+$", na=False)
+                duplicated = canonical & ids.duplicated(keep="first")
+                removed = int(duplicated.sum())
+                if removed:
+                    chunk_duplicates_removed[database] += removed
+                    df = df.loc[~duplicated].reset_index(drop=True)
+
             self.base_data[database] = df
             frames.append(df)
 
@@ -5481,10 +5579,17 @@ class SimpleReviewApp(tk.Tk):
                     )
                 )
             else:
+                extra = ""
+                if chunk_duplicates_removed:
+                    removed_total = sum(chunk_duplicates_removed.values())
+                    extra = (
+                        f"\n{removed_total} registro(s) repetido(s) entre lotes "
+                        "da mesma base foram ignorados pelo identificador de origem."
+                    )
                 self._showinfo(
                     "Processado",
                     f"{len(self.all_df)} registros foram importados "
-                    f"de {len(self.base_data)} base(s)."
+                    f"de {len(self.base_data)} base(s)." + extra
                 )
 
         self.recompare(
@@ -9001,7 +9106,7 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
         # Legenda simples para que o usuário identifique imediatamente as cores.
         legend_rows = []
         for db in [
-            "PubMed", "Web of Science", "Scopus", "Embase",
+            "PubMed", "ERIC", "Web of Science", "Scopus", "Embase",
             "LILACS/BVS", "Cochrane Library", "SciELO", "Outra",
         ]:
             legend_rows.append({"Tipo": "Base de origem", "Identificação": db})
