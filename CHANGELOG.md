@@ -2,6 +2,26 @@
 
 All notable changes to BioReviewPy will be documented in this file.
 
+## [0.24.4] - 2026-09-27
+
+### Added
+- Dedicated title/abstract study-screening workflow with `INCLUDE`, `EXCLUDE`, and `MAYBE` decisions.
+- Standardized exclusion-reason selector with Portuguese, English, and Spanish labels, plus a free-text “Other reason” option.
+- PRISMA 2020 preview window integrated into the study-selection workflow.
+- High-resolution PRISMA export in PNG (300 DPI), JPG, and PDF formats.
+- Separate export of PRISMA flow data for auditability.
+
+### Changed
+- Reorganized the Tools menu to separate the main study-selection workflow from auxiliary bibliographic classification tools.
+- Systematic-review/meta-analysis identification is now explicitly treated as an auxiliary classification step rather than an exclusion step.
+- Redesigned the PRISMA figure with larger stage labels, improved typography, simplified boxes, and a cleaner publication-oriented layout.
+- Simplified the PRISMA diagram to report duplicate removal and study-selection counts without automation-specific removal boxes or full-text exclusion reasons in the figure.
+- Updated software version metadata to 0.24.4.
+
+### Notes
+- Screening decisions and exclusion reasons remain researcher-controlled and are stored in the project/audit outputs.
+- The PRISMA visualization is intended to support reporting and does not replace methodological assessment by reviewers.
+
 ## [0.24.0] - 2026-09-26
 
 ### Added
