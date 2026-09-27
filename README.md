@@ -15,7 +15,9 @@ The software integrates bibliographic file importation, metadata harmonization, 
 - Fuzzy matching for potentially duplicated records
 - Manual confirmation or rejection of uncertain duplicate matches
 - Identification and classification of systematic reviews and meta-analyses
-- Sequential title/abstract screening support
+- Sequential title/abstract screening with Include / Exclude / Maybe decisions
+- Standardized exclusion-reason menu with multilingual support
+- PRISMA 2020 preview and high-resolution export (PNG, JPG, and PDF)
 - PRISMA-oriented record tracking
 - Reproducibility and audit reports
 - Export of cleaned datasets and audit tables
@@ -44,12 +46,14 @@ BioReviewPy attempts to identify the source database and compatible file structu
 3. Detect exact and potential duplicates
 4. Manually verify uncertain duplicate matches
 5. Generate the deduplicated dataset
-6. Classify and screen records when required
-7. Export cleaned datasets, PRISMA-oriented outputs, and audit reports
+6. Classify records when required using auxiliary review/meta-analysis tools
+7. Screen titles/abstracts with Include / Exclude / Maybe decisions and standardized exclusion reasons
+8. Preview and export the PRISMA 2020 study-selection flow diagram
+9. Export cleaned datasets, PRISMA-oriented outputs, and audit reports
 
 ## Current version
 
-Current development version: **0.24.0**
+Current development version: **0.24.4**
 
 BioReviewPy is under active development. The version used in scientific validation and the corresponding archived release should be cited to ensure reproducibility.
 
@@ -68,7 +72,7 @@ Some import formats use optional local components or libraries. In particular, P
 
 If you use BioReviewPy in research, please cite the archived software release:
 
-**Martins dos Santos, R. (2026). BioReviewPy (Version 0.24.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22865427**
+**Martins dos Santos, R. (2026). BioReviewPy (Version 0.24.4) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22865427**
 
 DOI (all versions): **10.5281/zenodo.22865427**
 
