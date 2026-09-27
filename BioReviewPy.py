@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-BioReviewPy v0.24.0
+BioReviewPy v0.24.4
 
 Open-source software for bibliographic data harmonization, duplicate detection,
 screening support, audit tracking, and evidence-synthesis workflows.
@@ -62,6 +62,7 @@ import tkinter as tk
 import unicodedata
 import urllib.parse
 import urllib.request
+import webbrowser
 import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -69,11 +70,11 @@ from collections import defaultdict
 from pathlib import Path
 from tkinter import ttk, filedialog, messagebox, simpledialog
 
-import pandas as pd
+pd = None  # carregado após a janela inicial para reduzir o atraso percebido na abertura
 from rapidfuzz import fuzz, process
 
 APP_TITLE = "BioReviewPy"
-VERSION = "0.24.0"
+VERSION = "0.24.4"
 AUTHOR_NAME = "Rodrigo Martins dos Santos"
 AUTHOR_EMAIL = "rodrigoms13@hotmail.com"
 COPYRIGHT_NOTICE = "Copyright © 2026 Rodrigo Martins dos Santos"
@@ -106,7 +107,7 @@ UI_TEXT = {
     "help": {"pt": "Ajuda", "en": "Help", "es": "Ayuda"},
     "about": {"pt": "Sobre o BioReviewPy", "en": "About BioReviewPy", "es": "Acerca de BioReviewPy"},
     "dashboard": {"pt": "Painel do projeto", "en": "Project dashboard", "es": "Panel del proyecto"},
-    "second_screen": {"pt": "2ª triagem – Marcar revisões sistemáticas/meta-análises", "en": "Second screening – Mark systematic reviews/meta-analyses", "es": "Segundo cribado – Marcar revisiones sistemáticas/metaanálisis"},
+    "second_screen": {"pt": "Classificação bibliográfica — revisões/meta-análises", "en": "Bibliographic classification — reviews/meta-analyses", "es": "Clasificación bibliográfica — revisiones/metaanálisis"},
     "search_article": {"pt": "Buscar artigo", "en": "Search article", "es": "Buscar artículo"},
     "format_refs": {"pt": "Formatar referências (ABNT / Vancouver / APA)...", "en": "Format references (ABNT / Vancouver / APA)...", "es": "Formatear referencias (ABNT / Vancouver / APA)..."},
     "prisma_auto": {"pt": "PRISMA automático", "en": "Automatic PRISMA", "es": "PRISMA automático"},
@@ -171,8 +172,8 @@ UI_TEXT = {
     "manual_duplicates": {"pt": "Duplicatas confirmadas manualmente", "en": "Manually confirmed duplicates", "es": "Duplicados confirmados manualmente"},
     "pending_check": {"pt": "Pendentes para conferir", "en": "Pending manual review", "es": "Pendientes de revisión"},
     "total_after": {"pt": "TOTAL APÓS DEDUPLICAÇÃO", "en": "TOTAL AFTER DEDUPLICATION", "es": "TOTAL DESPUÉS DE DEDUPLICACIÓN"},
-    "second_not_run": {"pt": "2ª triagem (revisões/meta): ainda não executada", "en": "Second screening (reviews/meta-analyses): not yet run", "es": "Segundo cribado (revisiones/metaanálisis): aún no ejecutado"},
-    "second_summary": {"pt": "2ª triagem (classificatória): {confirmed} confirmado(s) como revisão/meta | {pending} para revisar | Nenhum registro removido", "en": "Second screening (classification): {confirmed} confirmed as review/meta-analysis | {pending} to review | No records removed", "es": "Segundo cribado (clasificación): {confirmed} confirmado(s) como revisión/metaanálisis | {pending} para revisar | Ningún registro eliminado"},
+    "second_not_run": {"pt": "Classificação bibliográfica (revisões/meta): ainda não executada", "en": "Bibliographic classification (reviews/meta-analyses): not yet run", "es": "Clasificación bibliográfica (revisiones/metaanálisis): aún no ejecutada"},
+    "second_summary": {"pt": "Classificação bibliográfica: {confirmed} revisão(ões)/meta confirmada(s) | {pending} para revisar | Nenhum registro removido", "en": "Bibliographic classification: {confirmed} review/meta-analysis record(s) confirmed | {pending} to review | No records removed", "es": "Clasificación bibliográfica: {confirmed} revisión(es)/metaanálisis confirmada(s) | {pending} para revisar | Ningún registro eliminado"},
 }
 
 DATABASE_UI_NAMES = {
@@ -212,6 +213,11 @@ DISPLAY_VALUE_TRANSLATIONS = {
 }
 
 LITERAL_UI_TEXT = {
+    "Seleção de estudos": {"en":"Study selection", "es":"Selección de estudios"},
+    "Triagem de estudos — título e resumo": {"en":"Study screening — title and abstract", "es":"Cribado de estudios — título y resumen"},
+    "PRISMA — fluxo de seleção": {"en":"PRISMA — selection flow", "es":"PRISMA — flujo de selección"},
+    "Ferramentas auxiliares": {"en":"Auxiliary tools", "es":"Herramientas auxiliares"},
+    "Classificação bibliográfica — revisões/meta-análises": {"en":"Bibliographic classification — reviews/meta-analyses", "es":"Clasificación bibliográfica — revisiones/metaanálisis"},
     "Painel do projeto": {"en":"Project dashboard", "es":"Panel del proyecto"},
     "PAINEL DO PROJETO": {"en":"PROJECT DASHBOARD", "es":"PANEL DEL PROYECTO"},
     "Projeto ainda não salvo": {"en":"Project not saved yet", "es":"Proyecto aún no guardado"},
@@ -280,7 +286,7 @@ LITERAL_UI_TEXT = {
     "Mescla Web of Science, Embase e/ou Scopus, remove duplicatas por DOI idêntico ou título + ano idênticos e gera CSV, Excel e BibTeX. Também tenta criar BIBLIOSHINY_PRONTO.RData para você carregar diretamente no Biblioshiny sem refazer a mesclagem.": {"en":"Merges Web of Science, Embase and/or Scopus, removes duplicates by identical DOI or identical title + year, and generates CSV, Excel and BibTeX files. It also attempts to create BIBLIOSHINY_PRONTO.RData for direct loading into Biblioshiny without repeating the merge.", "es":"Combina Web of Science, Embase y/o Scopus, elimina duplicados por DOI idéntico o título + año idénticos y genera archivos CSV, Excel y BibTeX. También intenta crear BIBLIOSHINY_PRONTO.RData para cargarlo directamente en Biblioshiny sin repetir la combinación."},
     "Importante: o programa não inventa metadados. Palavras-chave, referências citadas, afiliações e citações só estarão disponíveis se esses campos tiverem sido importados do arquivo original.": {"en":"Important: the software does not invent metadata. Keywords, cited references, affiliations and citation counts are available only when those fields were imported from the original file.", "es":"Importante: el programa no inventa metadatos. Las palabras clave, referencias citadas, afiliaciones y citas solo estarán disponibles si esos campos fueron importados del archivo original."},
     "O caminho do RData será copiado e o arquivo será selecionado no Explorador para facilitar a última etapa de carga.": {"en":"The RData path will be copied and the file selected in Explorer to simplify the final loading step.", "es":"La ruta del RData se copiará y el archivo se seleccionará en el Explorador para facilitar el último paso de carga."},
-    "2ª triagem classificatória de revisões/meta-análises: ainda não executada": {"en":"Second screening for review/meta-analysis classification: not yet run", "es":"Segundo cribado para clasificación de revisiones/metaanálisis: aún no ejecutado"},
+    "Classificação bibliográfica de revisões/meta-análises: ainda não executada": {"en":"Second screening for review/meta-analysis classification: not yet run", "es":"Segundo cribado para clasificación de revisiones/metaanálisis: aún no ejecutado"},
     "Revisões/meta-análises marcadas na 2ª triagem:": {"en":"Reviews/meta-analyses marked in the second screening:", "es":"Revisiones/metaanálisis marcados en el segundo cribado:"},
     "Identificados:": {"en":"Identified:", "es":"Identificados:"},
     "Duplicatas removidas:": {"en":"Duplicates removed:", "es":"Duplicados eliminados:"},
@@ -359,7 +365,7 @@ MESSAGE_UI_TEXT = {
     "Projeto salvo:": {"en":"Project saved:", "es":"Proyecto guardado:"},
     "Projeto aberto:": {"en":"Project opened:", "es":"Proyecto abierto:"},
     "Exportado para:": {"en":"Exported to:", "es":"Exportado a:"},
-    "2ª triagem confirmada:": {"en":"Second screening confirmed:", "es":"Segundo cribado confirmado:"},
+    "Classificação bibliográfica confirmada:": {"en":"Second screening confirmed:", "es":"Segundo cribado confirmado:"},
     "revisão(ões)/meta-análise(s) marcada(s)": {"en":"review(s)/meta-analysis(es) marked", "es":"revisión(es)/metaanálisis marcado(s)"},
     "nenhum registro removido": {"en":"no records removed", "es":"ningún registro eliminado"},
 
@@ -4288,6 +4294,35 @@ class SimpleReviewApp(tk.Tk):
         self.geometry("1440x900")
         self.minsize(1120, 700)
 
+        # Mostra a janela antes de carregar pandas. Em Windows e principalmente
+        # na versão empacotada (.exe), a importação pode levar alguns segundos;
+        # sem esta etapa o usuário tem a impressão de que o programa não abriu.
+        startup = tk.Frame(self, bg="#EAF2F8")
+        startup.pack(fill="both", expand=True)
+        tk.Label(
+            startup,
+            text="BioReviewPy",
+            bg="#EAF2F8",
+            fg="#0B4F8A",
+            font=("Segoe UI", 24, "bold"),
+        ).pack(pady=(220, 8))
+        tk.Label(
+            startup,
+            text="Carregando componentes...",
+            bg="#EAF2F8",
+            fg="#486581",
+            font=("Segoe UI", 10),
+        ).pack()
+        self.update_idletasks()
+        self.update()
+
+        global pd
+        if pd is None:
+            import pandas as _pandas
+            pd = _pandas
+
+        startup.destroy()
+
         self.file_entries = []
         self.base_data = {}
         self.all_df = pd.DataFrame(columns=FIELDS)
@@ -4295,7 +4330,7 @@ class SimpleReviewApp(tk.Tk):
         self.final_df = pd.DataFrame(columns=FIELDS)
         self.comparison_df = pd.DataFrame(columns=COMPARISON_FIELDS)
         self.comparison_order = []
-        self.triage_df = pd.DataFrame(columns=TRIAGE_FIELDS)  # legado v0.9; sem interface nesta versão
+        self.triage_df = pd.DataFrame(columns=TRIAGE_FIELDS)  # decisões da triagem de título/resumo
         self.review_filter_df = pd.DataFrame(columns=SECOND_SCREEN_FIELDS)
         self.second_screen_applied = False
         self.current_project_path = None
@@ -4687,11 +4722,37 @@ class SimpleReviewApp(tk.Tk):
         tools_menu = tk.Menu(menubar, tearoff=0)
         tools_menu.add_command(label=self.t("dashboard"), command=self.open_dashboard_window)
         tools_menu.add_separator()
-        tools_menu.add_command(label=self.t("second_screen"), command=self.open_second_screen_window)
-        tools_menu.add_command(label=self.t("search_article"), command=self.open_search_window)
-        tools_menu.add_command(label=self.t("format_refs"), command=self.open_reference_formatter_window)
+
+        # Fluxo metodológico principal da revisão.
+        selection_menu = tk.Menu(tools_menu, tearoff=0)
+        selection_menu.add_command(
+            label=self.translate_literal("Triagem de estudos — título e resumo"),
+            command=self.open_triage_window,
+        )
+        selection_menu.add_command(
+            label=self.translate_literal("PRISMA — fluxo de seleção"),
+            command=self.open_prisma_window,
+        )
+        tools_menu.add_cascade(
+            label=self.translate_literal("Seleção de estudos"),
+            menu=selection_menu,
+        )
+
+        # Recursos auxiliares: classificam/consultam registros, mas não representam
+        # uma etapa de inclusão/exclusão no fluxo PRISMA.
+        auxiliary_menu = tk.Menu(tools_menu, tearoff=0)
+        auxiliary_menu.add_command(
+            label=self.translate_literal("Classificação bibliográfica — revisões/meta-análises"),
+            command=self.open_second_screen_window,
+        )
+        auxiliary_menu.add_command(label=self.t("search_article"), command=self.open_search_window)
+        auxiliary_menu.add_command(label=self.t("format_refs"), command=self.open_reference_formatter_window)
+        tools_menu.add_cascade(
+            label=self.translate_literal("Ferramentas auxiliares"),
+            menu=auxiliary_menu,
+        )
+
         tools_menu.add_separator()
-        tools_menu.add_command(label=self.t("prisma_auto"), command=self.open_prisma_window)
         tools_menu.add_command(label=self.t("audit_report"), command=self.export_audit_dialog)
         menubar.add_cascade(label=self.t("tools"), menu=tools_menu)
 
@@ -5357,7 +5418,7 @@ class SimpleReviewApp(tk.Tk):
             columns=COMPARISON_FIELDS
         )
         self.comparison_order = []
-        self.triage_df = pd.DataFrame(columns=TRIAGE_FIELDS)  # legado v0.9; sem interface nesta versão
+        self.triage_df = pd.DataFrame(columns=TRIAGE_FIELDS)  # decisões da triagem de título/resumo
         self.review_filter_df = pd.DataFrame(columns=SECOND_SCREEN_FIELDS)
         self.second_screen_applied = False
         self.current_project_path = None
@@ -6448,9 +6509,9 @@ class SimpleReviewApp(tk.Tk):
             ("Duplicatas removidas - total", metrics["duplicatas_total"]),
             ("Pendentes de decisão", metrics["pendentes"]),
             ("Registros após deduplicação", metrics["final"]),
-            ("2ª triagem executada", "SIM" if self.second_screen_applied else "NÃO"),
+            ("Classificação bibliográfica executada", "SIM" if self.second_screen_applied else "NÃO"),
             ("Revisões/meta confirmadas", metrics["segunda_confirmados"]),
-            ("2ª triagem pendentes", metrics["segunda_pendentes"]),
+            ("Classificação bibliográfica pendente", metrics["segunda_pendentes"]),
         ]
         summary_df = pd.DataFrame(summary_rows, columns=["Parâmetro", "Valor"])
         files_df = self.audit_files_df()
@@ -6466,7 +6527,7 @@ class SimpleReviewApp(tk.Tk):
             if self.comparison_df is not None and not self.comparison_df.empty:
                 self.comparison_df.to_excel(writer, sheet_name="DECISOES_DUPLICATAS", index=False)
             if self.second_screen_applied and self.review_filter_df is not None and not self.review_filter_df.empty:
-                self.review_filter_df.to_excel(writer, sheet_name="SEGUNDA_TRIAGEM", index=False)
+                self.review_filter_df.to_excel(writer, sheet_name="CLASSIFICACAO_REVISOES_META", index=False)
             from openpyxl.styles import PatternFill, Font
             blue = PatternFill(fill_type="solid", fgColor="0B4F8A")
             for ws in writer.book.worksheets:
@@ -6516,24 +6577,34 @@ class SimpleReviewApp(tk.Tk):
         """Exporta as contagens que alimentam o PRISMA em formato auditável."""
         counts = self.prisma_counts()
         flow = pd.DataFrame([
-            ("Registros identificados", counts["identified"]),
-            ("Duplicatas removidas", counts["duplicates"]),
-            ("Registros após deduplicação", counts["deduplicated"]),
-            ("Revisões/meta confirmadas e mantidas", counts["second_confirmed"]),
-            ("Revisões/meta pendentes", counts["second_pending"]),
-            ("Registros disponíveis para título/resumo", counts["screening"]),
-            ("Excluídos em título/resumo", counts["title_abstract_excluded"]),
-            ("Relatórios buscados", counts["reports_sought"]),
+            ("Registros identificados nas bases de dados", counts["identified"]),
+            ("Duplicatas removidas antes da triagem", counts["duplicates"]),
+            ("Registros marcados como inelegíveis por automação", 0),
+            ("Registros removidos por outros motivos", 0),
+            ("Registros triados", counts["screening"]),
+            ("Registros excluídos", counts["title_abstract_excluded"]),
+            ("Relatórios buscados para recuperação", counts["reports_sought"]),
             ("Relatórios não recuperados", counts["reports_not_retrieved"]),
-            ("Textos completos avaliados", counts["reports_assessed"]),
-            ("Textos completos excluídos", counts["full_text_excluded"]),
-            ("Estudos incluídos", counts["studies_included"]),
-        ], columns=["Etapa", "n"])
+            ("Relatórios avaliados para elegibilidade", counts["reports_assessed"]),
+            ("Relatórios excluídos após avaliação", counts["full_text_excluded"]),
+            ("Estudos incluídos na revisão", counts["studies_included"]),
+            ("Relatórios dos estudos incluídos", counts.get("reports_included", 0)),
+        ], columns=["Etapa PRISMA 2020", "n"])
         per_base = self.base_report_df().copy()
         second_types = pd.DataFrame(
             sorted(counts.get("second_type_counts", {}).items()),
-            columns=["Classificação 2ª triagem", "n"]
-        ) if counts.get("second_type_counts") else pd.DataFrame(columns=["Classificação 2ª triagem", "n"])
+            columns=["Classificação bibliográfica", "n"]
+        ) if counts.get("second_type_counts") else pd.DataFrame(columns=["Classificação bibliográfica", "n"])
+        triage_by_base = pd.DataFrame([
+            {
+                "Base": base, "Total": vals.get("total", 0),
+                "Incluídos": vals.get("included", 0), "Excluídos": vals.get("excluded", 0),
+                "Talvez": vals.get("maybe", 0), "Pendentes": vals.get("pending", 0),
+            }
+            for base, vals in sorted(counts.get("triage_by_base", {}).items())
+        ])
+        if triage_by_base.empty:
+            triage_by_base = pd.DataFrame(columns=["Base", "Total", "Incluídos", "Excluídos", "Talvez", "Pendentes"])
         extras = pd.DataFrame([
             ("Motivos de exclusão em texto completo", counts.get("full_text_reasons", "")),
             ("Gerado em", datetime.now().isoformat(timespec="seconds")),
@@ -6543,7 +6614,8 @@ class SimpleReviewApp(tk.Tk):
         with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
             flow.to_excel(writer, sheet_name="FLUXO_PRISMA", index=False)
             per_base.to_excel(writer, sheet_name="POR_BASE", index=False)
-            second_types.to_excel(writer, sheet_name="SEGUNDA_TRIAGEM", index=False)
+            second_types.to_excel(writer, sheet_name="CLASSIFICACAO_REVISOES_META", index=False)
+            triage_by_base.to_excel(writer, sheet_name="TRIAGEM_POR_BASE", index=False)
             extras.to_excel(writer, sheet_name="INFORMACOES", index=False)
             from openpyxl.styles import PatternFill, Font
             blue = PatternFill(fill_type="solid", fgColor="0B4F8A")
@@ -7544,7 +7616,7 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
             "final_df": self._df_records(self.final_df),
             "comparison_df": self._df_records(self.comparison_df),
             "comparison_order": list(self.comparison_order),
-            "triage_df": self._df_records(self.triage_df),  # compatibilidade com projetos v0.9
+            "triage_df": self._df_records(self.triage_df),  # triagem de título/resumo
             "review_filter_df": self._df_records(self.review_filter_df),
             "second_screen_applied": bool(self.second_screen_applied),
             "prisma_extra": dict(self.prisma_extra),
@@ -7865,8 +7937,8 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
     def open_second_screen_window(self):
         if self.final_df.empty:
             self._showwarning(
-                "2ª triagem",
-                "Processe e deduplique as bases antes de executar a 2ª triagem."
+                "Classificação bibliográfica",
+                "Processe e deduplique as bases antes de executar a classificação bibliográfica."
             )
             return
 
@@ -7921,9 +7993,9 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
             " — CONFIRMADA (edite y confirme nuevamente para cambiar)",
         ) if self.second_screen_applied else ""
         win.title(ss(
-            "2ª triagem — Marcação de revisões sistemáticas e meta-análises",
-            "Second screening — Systematic review and meta-analysis classification",
-            "Segundo cribado — Clasificación de revisiones sistemáticas y metaanálisis",
+            self.translate_literal("Classificação bibliográfica — revisões/meta-análises"),
+            "Bibliographic classification — systematic reviews/meta-analyses",
+            "Clasificación bibliográfica — revisiones sistemáticas/metaanálisis",
         ) + suffix)
         win.geometry("1420x880")
         win.minsize(1050, 700)
@@ -8374,7 +8446,168 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
             )
         search_entry.focus_set()
 
-    def _legacy_open_triage_window_v09(self):
+    def triage_stats(self):
+        """Retorna contagens da triagem título/resumo, inclusive por base."""
+        self.sync_triage_df()
+        if self.triage_df is None or self.triage_df.empty:
+            return {
+                "total": 0, "included": 0, "excluded": 0, "maybe": 0,
+                "pending": 0, "evaluated": 0, "by_base": {},
+            }
+
+        statuses = self.triage_df["triagem_status"].fillna("").astype(str).str.strip()
+        statuses = statuses.replace("", "NÃO AVALIADO")
+        counts = statuses.value_counts().to_dict()
+        by_base = {}
+        for base, group in self.triage_df.assign(_status=statuses).groupby("base", dropna=False):
+            gc = group["_status"].value_counts().to_dict()
+            by_base[clean(base) or "Outra"] = {
+                "total": int(len(group)),
+                "included": int(gc.get("INCLUIR", 0)),
+                "excluded": int(gc.get("EXCLUIR", 0)),
+                "maybe": int(gc.get("TALVEZ", 0)),
+                "pending": int(gc.get("NÃO AVALIADO", 0)),
+            }
+
+        included = int(counts.get("INCLUIR", 0))
+        excluded = int(counts.get("EXCLUIR", 0))
+        maybe = int(counts.get("TALVEZ", 0))
+        pending = int(counts.get("NÃO AVALIADO", 0))
+        return {
+            "total": int(len(self.triage_df)),
+            "included": included,
+            "excluded": excluded,
+            "maybe": maybe,
+            "pending": pending,
+            "evaluated": included + excluded + maybe,
+            "by_base": by_base,
+        }
+
+    def export_triage_excel(self, output_path):
+        """Exporta decisões da triagem em planilha auditável, sem exigir Excel para triar."""
+        self.sync_triage_df()
+        output = Path(output_path)
+        data = self.triage_df.copy()
+        rename = {
+            "base": "Base", "autores": "Autores", "titulo": "Título", "resumo": "Resumo",
+            "revista": "Revista", "ano": "Ano", "doi": "DOI", "id_origem": "ID original",
+            "triagem_status": "Decisão da triagem", "motivo_exclusao": "Motivo da exclusão",
+        }
+        cols = ["base","autores","titulo","resumo","revista","ano","doi","id_origem","triagem_status","motivo_exclusao"]
+        data = data[cols].rename(columns=rename)
+        included = data[data["Decisão da triagem"] == "INCLUIR"].copy()
+        excluded = data[data["Decisão da triagem"] == "EXCLUIR"].copy()
+        pending = data[data["Decisão da triagem"].isin(["NÃO AVALIADO", "TALVEZ", ""])].copy()
+        stats = self.triage_stats()
+        summary_rows = []
+        for base, vals in sorted(stats["by_base"].items()):
+            summary_rows.append({
+                "Base": base, "Total": vals["total"], "Incluídos": vals["included"],
+                "Excluídos": vals["excluded"], "Talvez": vals["maybe"], "Pendentes": vals["pending"],
+            })
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            data.to_excel(writer, sheet_name="TRIAGEM_COMPLETA", index=False)
+            included.to_excel(writer, sheet_name="INCLUIDOS", index=False)
+            excluded.to_excel(writer, sheet_name="EXCLUIDOS", index=False)
+            pending.to_excel(writer, sheet_name="PENDENTES", index=False)
+            pd.DataFrame(summary_rows).to_excel(writer, sheet_name="RESUMO_POR_BASE", index=False)
+            from openpyxl.styles import PatternFill, Font
+            header_fill = PatternFill(fill_type="solid", fgColor="0B4F8A")
+            fills = {
+                "INCLUIR": PatternFill(fill_type="solid", fgColor="D9EAD3"),
+                "EXCLUIR": PatternFill(fill_type="solid", fgColor="F4CCCC"),
+                "TALVEZ": PatternFill(fill_type="solid", fgColor="FFF2A8"),
+            }
+            for ws in writer.book.worksheets:
+                ws.freeze_panes = "A2"
+                ws.auto_filter.ref = ws.dimensions
+                for cell in ws[1]:
+                    cell.fill = header_fill
+                    cell.font = Font(bold=True, color="FFFFFF")
+                for col, width in {"A":18,"B":42,"C":70,"D":85,"E":35,"F":10,"G":30,"H":18,"I":22,"J":45}.items():
+                    ws.column_dimensions[col].width = width
+                if ws.title == "TRIAGEM_COMPLETA":
+                    for r in range(2, ws.max_row + 1):
+                        status = clean(ws.cell(r, 9).value) or "NÃO AVALIADO"
+                        fill = fills.get(status)
+                        if fill:
+                            for c in range(1, min(ws.max_column, 10) + 1):
+                                ws.cell(r, c).fill = fill
+        return output
+
+    def export_included_studies_word(self, output_path):
+        """Cria uma tabela Word de extração com os estudos incluídos na triagem."""
+        self.sync_triage_df()
+        included = self.triage_df[self.triage_df["triagem_status"] == "INCLUIR"].copy()
+        if included.empty:
+            raise RuntimeError("Nenhum estudo foi marcado como INCLUIR na triagem.")
+        try:
+            from docx import Document
+            from docx.enum.section import WD_ORIENT
+            from docx.shared import Inches, Pt
+        except Exception as exc:
+            raise RuntimeError(
+                "Para gerar o documento Word, instale python-docx (pip install python-docx)."
+            ) from exc
+
+        doc = Document()
+        section = doc.sections[0]
+        section.orientation = WD_ORIENT.LANDSCAPE
+        section.page_width, section.page_height = section.page_height, section.page_width
+        section.top_margin = Inches(0.45)
+        section.bottom_margin = Inches(0.45)
+        section.left_margin = Inches(0.45)
+        section.right_margin = Inches(0.45)
+
+        title = doc.add_paragraph()
+        run = title.add_run("Tabela de extração de dados — estudos incluídos")
+        run.bold = True
+        run.font.size = Pt(14)
+        doc.add_paragraph(
+            f"Gerado pelo {APP_TITLE} v{VERSION}. Estudos incluídos na triagem de título/resumo: {len(included)}."
+        )
+
+        headers = [
+            "Autor(es) / ano", "Título do estudo", "Base", "Objetivo", "Desenho do estudo",
+            "Amostra / população", "Intervenção / exposição", "Comparador", "Desfechos",
+            "Resultados principais", "Observações", "Referência",
+        ]
+        table = doc.add_table(rows=1, cols=len(headers))
+        table.style = "Table Grid"
+        hdr = table.rows[0].cells
+        for i, text in enumerate(headers):
+            hdr[i].text = text
+            for paragraph in hdr[i].paragraphs:
+                for r in paragraph.runs:
+                    r.bold = True
+                    r.font.size = Pt(7.5)
+
+        for _, row in included.iterrows():
+            cells = table.add_row().cells
+            authors = clean(row.get("autores", ""))
+            year = clean(row.get("ano", ""))
+            author_year = authors + (f" ({year})" if year else "")
+            title_text = clean(row.get("titulo", ""))
+            journal = clean(row.get("revista", ""))
+            doi = clean(row.get("doi", ""))
+            reference_parts = [p for p in [authors, title_text, journal, year] if p]
+            reference = ". ".join(reference_parts)
+            if reference and not reference.endswith("."):
+                reference += "."
+            if doi:
+                reference += f" DOI: {doi}."
+            values = [author_year, title_text, clean(row.get("base", "")), "", "", "", "", "", "", "", "", reference]
+            for i, value in enumerate(values):
+                cells[i].text = value
+                for paragraph in cells[i].paragraphs:
+                    for r in paragraph.runs:
+                        r.font.size = Pt(7)
+
+        doc.save(str(output_path))
+        return Path(output_path)
+
+    def open_triage_window(self):
+        """Triagem título/resumo integrada ao aplicativo, sem depender de planilha externa."""
         if self.final_df.empty:
             self._showwarning("Triagem", "Processe e deduplique as bases antes de iniciar a triagem.")
             return
@@ -8382,33 +8615,53 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
         self.sync_triage_df()
         win = tk.Toplevel(self)
         self.after_idle(lambda w=win: self._localize_widget_tree(w))
-        win.title("Triagem de título e resumo")
-        win.geometry("1280x820")
-        win.minsize(950, 650)
+        win.title(self.translate_literal("Triagem de estudos — título e resumo"))
+        win.geometry("1420x880")
+        win.minsize(1050, 700)
 
-        top = ttk.Frame(win, padding=8)
-        top.pack(fill="x")
-        ttk.Label(top, text="Buscar:").pack(side="left")
+        header = tk.Frame(win, bg="#0B4F8A", pady=10)
+        header.pack(fill="x")
+        tk.Label(header, text="TRIAGEM DE TÍTULO E RESUMO", bg="#0B4F8A", fg="white", font=("Segoe UI", 17, "bold")).pack()
+        tk.Label(header, text="Decida dentro do BioReviewPy: incluído, excluído ou talvez", bg="#0B4F8A", fg="#DDEEFF", font=("Segoe UI", 9)).pack()
+
+        filters = ttk.Frame(win, padding=8)
+        filters.pack(fill="x")
+        ttk.Label(filters, text="Buscar:").pack(side="left")
         search_var = tk.StringVar()
-        search_entry = ttk.Entry(top, textvariable=search_var, width=48)
-        search_entry.pack(side="left", padx=(6, 12))
+        search_entry = ttk.Entry(filters, textvariable=search_var, width=38)
+        search_entry.pack(side="left", padx=(5, 10))
+        ttk.Label(filters, text="Base:").pack(side="left")
+        base_var = tk.StringVar(value="Todas")
+        bases = ["Todas"] + sorted([clean(x) for x in self.triage_df["base"].dropna().unique() if clean(x)])
+        base_combo = ttk.Combobox(filters, textvariable=base_var, values=bases, state="readonly", width=20)
+        base_combo.pack(side="left", padx=(5, 10))
+        ttk.Label(filters, text="Decisão:").pack(side="left")
+        status_var_filter = tk.StringVar(value="Todos")
+        status_combo = ttk.Combobox(
+            filters, textvariable=status_var_filter,
+            values=["Todos", "NÃO AVALIADO", "INCLUIR", "EXCLUIR", "TALVEZ"],
+            state="readonly", width=18,
+        )
+        status_combo.pack(side="left", padx=(5, 10))
         counter_var = tk.StringVar()
-        ttk.Label(top, textvariable=counter_var, font=("Segoe UI", 9, "bold")).pack(side="right")
+        ttk.Label(filters, textvariable=counter_var, font=("Segoe UI", 9, "bold")).pack(side="right")
 
-        table_frame = ttk.Frame(win, padding=(8, 0, 8, 4))
-        table_frame.pack(fill="both", expand=True)
+        body = ttk.Frame(win, padding=(8, 0, 8, 4))
+        body.pack(fill="both", expand=True)
+        body.columnconfigure(0, weight=3)
+        body.columnconfigure(1, weight=2)
+        body.rowconfigure(0, weight=1)
+
+        table_frame = ttk.Frame(body)
+        table_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
         tree = ttk.Treeview(
             table_frame,
             columns=("status", "base", "ano", "titulo"),
-            show="headings",
-            selectmode="browse",
-            height=15,
+            show="headings", selectmode="browse", height=18,
         )
         for col, title, width in [
-            ("status", "Triagem", 125),
-            ("base", "Base", 135),
-            ("ano", "Ano", 70),
-            ("titulo", "Título", 780),
+            ("status", "Decisão", 125), ("base", "Base", 135),
+            ("ano", "Ano", 65), ("titulo", "Título", 650),
         ]:
             tree.heading(col, text=title)
             tree.column(col, width=width, minwidth=60)
@@ -8417,12 +8670,16 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
         tree.pack(side="left", fill="both", expand=True)
         ybar.pack(side="right", fill="y")
 
-        action = ttk.Frame(win, padding=(8, 4))
-        action.pack(fill="x")
-
-        detail = tk.Text(win, height=13, wrap="word", font=("Segoe UI", 10), padx=8, pady=8)
-        detail.pack(fill="both", expand=False, padx=8, pady=(0, 8))
+        detail_frame = ttk.LabelFrame(body, text="Artigo selecionado", padding=8)
+        detail_frame.grid(row=0, column=1, sticky="nsew")
+        detail = tk.Text(detail_frame, wrap="word", font=("Segoe UI", 10), padx=8, pady=8)
+        detail.pack(fill="both", expand=True)
         detail.configure(state="disabled")
+
+        actions = ttk.Frame(win, padding=(8, 5))
+        actions.pack(fill="x")
+        nav = ttk.Frame(win, padding=(8, 0, 8, 8))
+        nav.pack(fill="x")
 
         def current_uid():
             selection = tree.selection()
@@ -8431,28 +8688,32 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
             tags = tree.item(selection[0], "tags")
             return tags[0] if tags else ""
 
+        def selected_row():
+            uid = current_uid()
+            if not uid:
+                return None
+            subset = self.triage_df[self.triage_df["uid"] == uid]
+            return None if subset.empty else subset.iloc[0]
+
         def update_counter():
-            series = self.triage_df["triagem_status"] if not self.triage_df.empty else pd.Series(dtype=str)
-            counts = series.value_counts().to_dict()
+            st = self.triage_stats()
             counter_var.set(
-                f"Incluídos: {counts.get('INCLUIR', 0)}   |   Excluídos: {counts.get('EXCLUIR', 0)}   |   "
-                f"Talvez: {counts.get('TALVEZ', 0)}   |   Pendentes: {counts.get('NÃO AVALIADO', 0)}"
+                f"Incluídos: {st['included']}  |  Excluídos: {st['excluded']}  |  "
+                f"Talvez: {st['maybe']}  |  Pendentes: {st['pending']}  |  Total: {st['total']}"
             )
 
         def show_detail(_event=None):
-            uid = current_uid()
-            if not uid:
+            row = selected_row()
+            if row is None:
                 return
-            subset = self.triage_df[self.triage_df["uid"] == uid]
-            if subset.empty:
-                return
-            row = subset.iloc[0]
             content = (
-                f"STATUS: {clean(row.get('triagem_status', ''))}\n"
-                f"MOTIVO DE EXCLUSÃO: {clean(row.get('motivo_exclusao', '')) or '-'}\n\n"
+                f"DECISÃO: {clean(row.get('triagem_status', '')) or 'NÃO AVALIADO'}\n"
+                f"MOTIVO DE EXCLUSÃO: {clean(row.get('motivo_exclusao', '')) or '-'}\n"
+                f"BASE: {clean(row.get('base', ''))}    ANO: {clean(row.get('ano', ''))}\n\n"
                 f"TÍTULO\n{clean(row.get('titulo', ''))}\n\n"
-                f"AUTORES\n{clean(row.get('autores', ''))}\n\n"
+                f"AUTORES\n{clean(row.get('autores', '')) or '-'}\n\n"
                 f"RESUMO\n{clean(row.get('resumo', '')) or '[Resumo não disponível neste formato de exportação]'}\n\n"
+                f"REVISTA: {clean(row.get('revista', '')) or '-'}\n"
                 f"DOI: {clean(row.get('doi', '')) or '-'}   |   ID: {clean(row.get('id_origem', '')) or '-'}"
             )
             detail.configure(state="normal")
@@ -8463,22 +8724,22 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
         def refresh(*_args):
             query = normalize_title(search_var.get())
             selected_uid = current_uid()
+            wanted_base = base_var.get()
+            wanted_status = status_var_filter.get()
             tree.delete(*tree.get_children())
             for _, row in self.triage_df.iterrows():
-                haystack = normalize_title(
-                    " ".join([
-                        clean(row.get("titulo", "")), clean(row.get("autores", "")),
-                        clean(row.get("doi", "")), clean(row.get("id_origem", "")),
-                    ])
-                )
+                status = clean(row.get("triagem_status", "")) or "NÃO AVALIADO"
+                if wanted_base != "Todas" and clean(row.get("base", "")) != wanted_base:
+                    continue
+                if wanted_status != "Todos" and status != wanted_status:
+                    continue
+                haystack = normalize_title(" ".join([
+                    clean(row.get("titulo", "")), clean(row.get("autores", "")),
+                    clean(row.get("doi", "")), clean(row.get("id_origem", "")),
+                ]))
                 if query and query not in haystack:
                     continue
-                status = clean(row.get("triagem_status", "")) or "NÃO AVALIADO"
-                tag_color = {
-                    "INCLUIR": "include",
-                    "EXCLUIR": "exclude",
-                    "TALVEZ": "maybe",
-                }.get(status, "pending")
+                tag_color = {"INCLUIR":"include", "EXCLUIR":"exclude", "TALVEZ":"maybe"}.get(status, "pending")
                 item = tree.insert(
                     "", "end",
                     values=(status, row.get("base", ""), row.get("ano", ""), row.get("titulo", "")),
@@ -8493,6 +8754,212 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
             update_counter()
             show_detail()
 
+        def select_next_pending():
+            items = list(tree.get_children())
+            if not items:
+                return
+            current = tree.selection()[0] if tree.selection() else None
+            start = items.index(current) + 1 if current in items else 0
+            ordered = items[start:] + items[:start]
+            target = None
+            for item in ordered:
+                if tree.item(item, "values")[0] in ("NÃO AVALIADO", "TALVEZ"):
+                    target = item
+                    break
+            if target is None and ordered:
+                target = ordered[0]
+            if target:
+                tree.selection_set(target)
+                tree.focus(target)
+                tree.see(target)
+                show_detail()
+
+        def ask_exclusion_reason(current=""):
+            """Seleciona um motivo padronizado de exclusão, com opção de texto livre."""
+            lang = getattr(self, "language_code", "pt")
+            labels = {
+                "pt": {
+                    "title": "Motivo da exclusão",
+                    "prompt": "Selecione o principal motivo para excluir este estudo:",
+                    "confirm": "EXCLUIR",
+                    "cancel": "CANCELAR",
+                    "other_prompt": "Digite o motivo da exclusão:",
+                    "reasons": [
+                        "Não atende aos critérios de elegibilidade",
+                        "População/amostra inadequada",
+                        "Desenho/tipo de estudo inadequado",
+                        "Intervenção/exposição inadequada",
+                        "Comparador inadequado",
+                        "Desfecho inadequado",
+                        "Tamanho amostral (N) não informado",
+                        "Dados dos participantes insuficientes",
+                        "Dados numéricos insuficientes",
+                        "Média não informada",
+                        "Medida de dispersão não informada (DP/EP/IC)",
+                        "Resultados não apresentados em tabela ou texto",
+                        "Dados não extraíveis",
+                        "Texto completo indisponível",
+                        "Publicação duplicada do mesmo estudo",
+                        "Idioma não elegível",
+                        "Outro motivo…",
+                    ],
+                    "other": "Outro motivo…",
+                },
+                "en": {
+                    "title": "Reason for exclusion",
+                    "prompt": "Select the main reason for excluding this study:",
+                    "confirm": "EXCLUDE",
+                    "cancel": "CANCEL",
+                    "other_prompt": "Enter the reason for exclusion:",
+                    "reasons": [
+                        "Does not meet eligibility criteria",
+                        "Ineligible population/sample",
+                        "Ineligible study design/type",
+                        "Ineligible intervention/exposure",
+                        "Ineligible comparator",
+                        "Ineligible outcome",
+                        "Sample size (N) not reported",
+                        "Insufficient participant data",
+                        "Insufficient numerical data",
+                        "Mean not reported",
+                        "Measure of dispersion not reported (SD/SE/CI)",
+                        "Results not reported in table or text",
+                        "Data not extractable",
+                        "Full text unavailable",
+                        "Duplicate publication of the same study",
+                        "Ineligible language",
+                        "Other reason…",
+                    ],
+                    "other": "Other reason…",
+                },
+                "es": {
+                    "title": "Motivo de exclusión",
+                    "prompt": "Seleccione el motivo principal para excluir este estudio:",
+                    "confirm": "EXCLUIR",
+                    "cancel": "CANCELAR",
+                    "other_prompt": "Escriba el motivo de exclusión:",
+                    "reasons": [
+                        "No cumple los criterios de elegibilidad",
+                        "Población/muestra no elegible",
+                        "Diseño/tipo de estudio no elegible",
+                        "Intervención/exposición no elegible",
+                        "Comparador no elegible",
+                        "Desenlace no elegible",
+                        "Tamaño muestral (N) no informado",
+                        "Datos de participantes insuficientes",
+                        "Datos numéricos insuficientes",
+                        "Media no informada",
+                        "Medida de dispersión no informada (DE/EE/IC)",
+                        "Resultados no presentados en tabla o texto",
+                        "Datos no extraíbles",
+                        "Texto completo no disponible",
+                        "Publicación duplicada del mismo estudio",
+                        "Idioma no elegible",
+                        "Otro motivo…",
+                    ],
+                    "other": "Otro motivo…",
+                },
+            }.get(lang, None)
+            if labels is None:
+                labels = {
+                    "title": "Reason for exclusion",
+                    "prompt": "Select the main reason for excluding this study:",
+                    "confirm": "EXCLUDE",
+                    "cancel": "CANCEL",
+                    "other_prompt": "Enter the reason for exclusion:",
+                    "reasons": [
+                        "Does not meet eligibility criteria",
+                        "Ineligible population/sample",
+                        "Ineligible study design/type",
+                        "Ineligible intervention/exposure",
+                        "Ineligible comparator",
+                        "Ineligible outcome",
+                        "Sample size (N) not reported",
+                        "Insufficient participant data",
+                        "Insufficient numerical data",
+                        "Mean not reported",
+                        "Measure of dispersion not reported (SD/SE/CI)",
+                        "Results not reported in table or text",
+                        "Data not extractable",
+                        "Full text unavailable",
+                        "Duplicate publication of the same study",
+                        "Ineligible language",
+                        "Other reason…",
+                    ],
+                    "other": "Other reason…",
+                }
+
+            dialog = tk.Toplevel(win)
+            dialog.title(labels["title"])
+            dialog.transient(win)
+            dialog.grab_set()
+            dialog.resizable(False, False)
+            dialog.geometry("660x230")
+
+            frame = ttk.Frame(dialog, padding=18)
+            frame.pack(fill="both", expand=True)
+
+            ttk.Label(
+                frame,
+                text=labels["prompt"],
+                font=("Segoe UI", 11, "bold"),
+                wraplength=610,
+            ).pack(anchor="w", pady=(0, 10))
+
+            reason_var = tk.StringVar()
+            reasons = labels["reasons"]
+            current_clean = clean(current)
+            reason_var.set(current_clean if current_clean in reasons else (reasons[0] if reasons else ""))
+
+            combo = ttk.Combobox(
+                frame,
+                textvariable=reason_var,
+                values=reasons,
+                state="readonly",
+                width=72,
+                font=("Segoe UI", 10),
+            )
+            combo.pack(fill="x", pady=(0, 14), ipady=4)
+
+            result = {"value": None}
+
+            def confirm():
+                selected = clean(reason_var.get())
+                if selected == labels["other"]:
+                    custom = self._askstring(
+                        labels["title"],
+                        labels["other_prompt"],
+                        initialvalue=(current_clean if current_clean not in reasons else ""),
+                        parent=dialog,
+                    )
+                    if custom is None:
+                        return
+                    selected = clean(custom)
+                    if not selected:
+                        return
+                result["value"] = selected
+                dialog.destroy()
+
+            def cancel():
+                result["value"] = None
+                dialog.destroy()
+
+            buttons = ttk.Frame(frame)
+            buttons.pack(fill="x", pady=(6, 0))
+            ttk.Button(buttons, text=labels["cancel"], command=cancel).pack(side="right", padx=(8, 0))
+            ttk.Button(buttons, text=labels["confirm"], command=confirm).pack(side="right")
+
+            combo.bind("<Return>", lambda _e: confirm())
+            dialog.bind("<Escape>", lambda _e: cancel())
+            dialog.protocol("WM_DELETE_WINDOW", cancel)
+            dialog.update_idletasks()
+            x = win.winfo_rootx() + max(0, (win.winfo_width() - dialog.winfo_width()) // 2)
+            y = win.winfo_rooty() + max(0, (win.winfo_height() - dialog.winfo_height()) // 2)
+            dialog.geometry(f"+{x}+{y}")
+            combo.focus_set()
+            dialog.wait_window()
+            return result["value"]
+
         def set_triage(status):
             uid = current_uid()
             if not uid:
@@ -8500,28 +8967,78 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
                 return
             reason = ""
             if status == "EXCLUIR":
-                current = self.triage_df.loc[self.triage_df["uid"] == uid, "motivo_exclusao"].iloc[0]
-                reason = self._askstring(
-                    "Motivo da exclusão",
-                    "Informe o motivo da exclusão (opcional):",
-                    initialvalue=current,
-                    parent=win,
-                )
+                current_series = self.triage_df.loc[self.triage_df["uid"] == uid, "motivo_exclusao"]
+                current = current_series.iloc[0] if not current_series.empty else ""
+                reason = ask_exclusion_reason(current)
                 if reason is None:
                     return
             mask = self.triage_df["uid"] == uid
             self.triage_df.loc[mask, "triagem_status"] = status
             self.triage_df.loc[mask, "motivo_exclusao"] = clean(reason) if status == "EXCLUIR" else ""
+            self.log_audit_event("TRIAGEM TÍTULO/RESUMO", f"UID={uid}; decisão={status}; motivo={clean(reason)}")
             refresh()
+            select_next_pending()
 
-        ttk.Button(action, text="✓ INCLUIR", command=lambda: set_triage("INCLUIR")).pack(side="left", padx=3)
-        ttk.Button(action, text="✗ EXCLUIR", command=lambda: set_triage("EXCLUIR")).pack(side="left", padx=3)
-        ttk.Button(action, text="? TALVEZ", command=lambda: set_triage("TALVEZ")).pack(side="left", padx=3)
-        ttk.Button(action, text="LIMPAR DECISÃO", command=lambda: set_triage("NÃO AVALIADO")).pack(side="left", padx=3)
-        ttk.Label(action, text="As decisões ficam salvas no projeto e entram no PRISMA automático.").pack(side="right")
+        def open_selected_doi():
+            row = selected_row()
+            if row is None:
+                return
+            doi = normalize_doi(row.get("doi", ""))
+            if doi:
+                webbrowser.open("https://doi.org/" + urllib.parse.quote(doi, safe="/()[];:.-_"))
+            else:
+                title = clean(row.get("titulo", ""))
+                if not title:
+                    return
+                webbrowser.open("https://scholar.google.com/scholar?q=" + urllib.parse.quote(title))
+
+        def export_results():
+            path = self._asksaveasfilename(
+                parent=win, title="Salvar resultado da triagem", defaultextension=".xlsx",
+                initialfile="TRIAGEM_TITULO_RESUMO.xlsx", filetypes=[("Excel", "*.xlsx")],
+            )
+            if not path:
+                return
+            try:
+                self.export_triage_excel(path)
+                self.log_audit_event("TRIAGEM EXPORTADA", path)
+                self._showinfo("Triagem", f"Resultado salvo em:\n{path}", parent=win)
+            except Exception as exc:
+                self._showerror("Triagem", str(exc), parent=win)
+
+        def export_word():
+            path = self._asksaveasfilename(
+                parent=win, title="Salvar tabela dos estudos incluídos", defaultextension=".docx",
+                initialfile="TABELA_EXTRACAO_ESTUDOS_INCLUIDOS.docx",
+                filetypes=[("Documento Word", "*.docx")],
+            )
+            if not path:
+                return
+            try:
+                self.export_included_studies_word(path)
+                self.log_audit_event("TABELA WORD GERADA", path)
+                self._showinfo("Triagem", f"Documento Word gerado em:\n{path}", parent=win)
+            except Exception as exc:
+                self._showerror("Triagem", str(exc), parent=win)
+
+        ttk.Button(actions, text="✓ INCLUIR", command=lambda: set_triage("INCLUIR")).pack(side="left", padx=3, ipadx=8)
+        ttk.Button(actions, text="✗ EXCLUIR", command=lambda: set_triage("EXCLUIR")).pack(side="left", padx=3, ipadx=8)
+        ttk.Button(actions, text="? TALVEZ", command=lambda: set_triage("TALVEZ")).pack(side="left", padx=3)
+        ttk.Button(actions, text="LIMPAR DECISÃO", command=lambda: set_triage("NÃO AVALIADO")).pack(side="left", padx=3)
+        ttk.Button(actions, text="ABRIR DOI / PESQUISAR", command=open_selected_doi).pack(side="left", padx=(14, 3))
+        ttk.Label(actions, text="Verde = incluído  |  Vermelho = excluído  |  Amarelo = talvez").pack(side="right")
+
+        ttk.Button(nav, text="PRÓXIMO PENDENTE", command=select_next_pending).pack(side="left")
+        ttk.Button(nav, text="PRISMA — PRÉ-VISUALIZAR / EXPORTAR", command=self.open_prisma_window).pack(side="left", padx=(10, 4))
+        ttk.Button(nav, text="GERAR WORD DOS INCLUÍDOS", command=export_word).pack(side="right", padx=4)
+        ttk.Button(nav, text="EXPORTAR RESULTADO", command=export_results).pack(side="right", padx=4)
+        ttk.Button(nav, text="SALVAR PROJETO", command=self.save_project).pack(side="right", padx=4)
 
         tree.bind("<<TreeviewSelect>>", show_detail)
+        tree.bind("<Double-1>", lambda _e: open_selected_doi())
         search_var.trace_add("write", refresh)
+        base_combo.bind("<<ComboboxSelected>>", refresh)
+        status_combo.bind("<<ComboboxSelected>>", refresh)
         refresh()
         if tree.get_children():
             tree.selection_set(tree.get_children()[0])
@@ -8615,17 +9132,29 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
         # para triagem continua sendo exatamente o banco deduplicado.
         screening = deduplicated
 
-        title_abstract_excluded = max(0, int(self.prisma_extra.get("records_excluded_title_abstract", 0) or 0))
-        title_abstract_excluded = min(title_abstract_excluded, screening)
-        reports_sought = max(0, screening - title_abstract_excluded)
+        triage = self.triage_stats()
+        triage_started = triage["evaluated"] > 0
+        if triage_started:
+            title_abstract_excluded = min(int(triage["excluded"]), screening)
+        else:
+            title_abstract_excluded = max(0, int(self.prisma_extra.get("records_excluded_title_abstract", 0) or 0))
+            title_abstract_excluded = min(title_abstract_excluded, screening)
+        if triage_started:
+            # Enquanto houver pendentes, o PRISMA fica provisório: somente INCLUIR/TALVEZ
+            # seguem para a tentativa de recuperação. Ao concluir a triagem, a aritmética
+            # coincide com screening - excluídos.
+            reports_sought = max(0, int(triage["included"]) + int(triage["maybe"]))
+        else:
+            reports_sought = max(0, screening - title_abstract_excluded)
         not_retrieved = max(0, int(self.prisma_extra.get("reports_not_retrieved", 0) or 0))
         not_retrieved = min(not_retrieved, reports_sought)
         reports_assessed = max(0, reports_sought - not_retrieved)
         full_excluded = max(0, int(self.prisma_extra.get("full_text_excluded", 0) or 0))
         full_excluded = min(full_excluded, reports_assessed)
         studies_included = max(0, int(self.prisma_extra.get("studies_included", 0) or 0))
+        reports_included = max(0, int(self.prisma_extra.get("reports_included", studies_included) or 0))
 
-        later_steps_entered = any([
+        later_steps_entered = bool(triage_started) or any([
             title_abstract_excluded, not_retrieved, full_excluded, studies_included,
             clean(self.prisma_extra.get("full_text_reasons", "")),
         ])
@@ -8645,184 +9174,444 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
             "second_possible": stats["pending"],
             "screening": screening,
             "base_counts": base_counts,
+            "triage_started": triage_started,
+            "triage_included": triage["included"],
+            "triage_excluded": triage["excluded"],
+            "triage_maybe": triage["maybe"],
+            "triage_pending": triage["pending"],
+            "triage_by_base": triage["by_base"],
             "title_abstract_excluded": title_abstract_excluded,
             "reports_sought": reports_sought,
             "reports_not_retrieved": not_retrieved,
             "reports_assessed": reports_assessed,
             "full_text_excluded": full_excluded,
             "studies_included": studies_included,
+            "reports_included": reports_included,
             "later_steps_entered": later_steps_entered,
             "full_text_reasons": clean(self.prisma_extra.get("full_text_reasons", "")),
         }
 
-    def export_prisma_png(self, output_path):
+    def _prisma_language(self, language=None):
+        """Normaliza o idioma usado especificamente no fluxograma PRISMA."""
+        lang = clean(language or getattr(self, "language_code", "pt")).lower()
+        return "en" if lang == "en" else "pt"
+
+    def _prisma_labels(self, language=None):
+        lang = self._prisma_language(language)
+        labels = {
+            "pt": {
+                "title": "Fluxograma PRISMA 2020",
+                "subtitle": "Fluxo de seleção dos estudos",
+                "identification": "IDENTIFICAÇÃO",
+                "screening": "TRIAGEM",
+                "eligibility": "ELEGIBILIDADE",
+                "included": "INCLUSÃO",
+                "identified": "Registros identificados nas bases de dados\n(n = {n})",
+                "removed_before": "Registros removidos antes da triagem",
+                "duplicates": "Duplicatas removidas\n(n = {n})",
+                "automation": "Registros marcados como inelegíveis por automação\n(n = 0)",
+                "other_removed": "Registros removidos por outros motivos\n(n = 0)",
+                "screened": "Registros triados\n(n = {n})",
+                "records_excluded": "Registros excluídos\n(n = {n})",
+                "reports_sought": "Relatórios buscados para recuperação\n(n = {n})",
+                "not_retrieved": "Relatórios não recuperados\n(n = {n})",
+                "assessed": "Relatórios avaliados para elegibilidade\n(n = {n})",
+                "reports_excluded": "Relatórios excluídos\n(n = {n})",
+                "reasons": "Motivos: {text}",
+                "reasons_missing": "não informados",
+                "studies_included": "Estudos incluídos na revisão\n(n = {n})",
+                "reports_included": "Relatórios dos estudos incluídos\n(n = {n})",
+                "provisional": "Fluxo provisório: ainda há registros pendentes na triagem.",
+                "source": "Estrutura baseada no fluxograma PRISMA 2020 • CC BY 4.0",
+                "generated": "Gerado pelo BioReviewPy v{version}",
+            },
+            "en": {
+                "title": "PRISMA 2020 flow diagram",
+                "subtitle": "Study selection flow",
+                "identification": "IDENTIFICATION",
+                "screening": "SCREENING",
+                "eligibility": "ELIGIBILITY",
+                "included": "INCLUDED",
+                "identified": "Records identified from databases\n(n = {n})",
+                "removed_before": "Records removed before screening",
+                "duplicates": "Duplicate records removed\n(n = {n})",
+                "automation": "Records marked as ineligible by automation tools\n(n = 0)",
+                "other_removed": "Records removed for other reasons\n(n = 0)",
+                "screened": "Records screened\n(n = {n})",
+                "records_excluded": "Records excluded\n(n = {n})",
+                "reports_sought": "Reports sought for retrieval\n(n = {n})",
+                "not_retrieved": "Reports not retrieved\n(n = {n})",
+                "assessed": "Reports assessed for eligibility\n(n = {n})",
+                "reports_excluded": "Reports excluded\n(n = {n})",
+                "reasons": "Reasons: {text}",
+                "reasons_missing": "not reported",
+                "studies_included": "Studies included in review\n(n = {n})",
+                "reports_included": "Reports of included studies\n(n = {n})",
+                "provisional": "Provisional flow: some records are still pending screening.",
+                "source": "Structure based on the PRISMA 2020 flow diagram • CC BY 4.0",
+                "generated": "Generated by BioReviewPy v{version}",
+            },
+        }
+        return labels[lang]
+
+    def render_prisma_image(self, language=None, scale=1.0):
+        """Renderiza um PRISMA 2020 limpo e em alta resolução; retorna um PIL.Image."""
         counts = self.prisma_counts()
+        labels = self._prisma_labels(language)
         try:
             from PIL import Image, ImageDraw, ImageFont
         except Exception as exc:
             raise RuntimeError(
-                "Para gerar o PRISMA em PNG, instale a biblioteca Pillow (pip install pillow)."
+                "Para gerar o PRISMA em imagem, instale a biblioteca Pillow (pip install pillow)."
             ) from exc
 
-        full = counts["later_steps_entered"]
-        width, height = 1500, 1940 if full else 1380
-        image = Image.new("RGB", (width, height), "white")
+        scale = max(0.25, float(scale or 1.0))
+        W, H = int(2300 * scale), int(1760 * scale)
+        image = Image.new("RGB", (W, H), "white")
         draw = ImageDraw.Draw(image)
+
+        def sc(v):
+            return int(v * scale)
 
         def font(size, bold=False):
             candidates = [
                 "arialbd.ttf" if bold else "arial.ttf",
                 "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf",
+                "LiberationSans-Bold.ttf" if bold else "LiberationSans-Regular.ttf",
             ]
             for name in candidates:
                 try:
-                    return ImageFont.truetype(name, size)
+                    return ImageFont.truetype(name, sc(size))
                 except Exception:
                     pass
             return ImageFont.load_default()
 
-        title_font = font(34, True)
-        box_font = font(23, False)
+        navy = "#163A63"
+        blue = "#EAF2FB"
+        pale = "#F8FAFC"
+        green = "#E8F5E1"
+        border = "#667085"
+        text_color = "#1F2937"
+        muted = "#6B7280"
+        white = "#FFFFFF"
+        accent_green = "#4F8A3F"
+        warning_bg = "#FFF6DB"
+        warning_border = "#D3A100"
+        warning_text = "#7A5900"
+
+        title_font = font(52, True)
+        subtitle_font = font(26, False)
+        section_font = font(26, True)
+        box_font = font(31, False)
+        box_bold = font(31, True)
+        side_title_font = font(22, True)
+        side_text_font = font(20, False)
         small_font = font(18, False)
 
-        draw.text((width // 2, 35), "Fluxograma PRISMA 2020 — revisão sistemática", anchor="ma", font=title_font, fill="black")
-        draw.text((width // 2, 82), "Deduplicação e marcações da 2ª triagem contabilizadas automaticamente", anchor="ma", font=small_font, fill="black")
+        draw.text((W // 2, sc(58)), labels["title"], anchor="ma", font=title_font, fill=navy)
+        draw.text((W // 2, sc(112)), labels["subtitle"], anchor="ma", font=subtitle_font, fill=muted)
 
-        main_x1, main_x2 = 150, 900
-        side_x1, side_x2 = 1000, 1420
-        box_h = 150
+        main_x1, main_x2 = sc(290), sc(1400)
+        side_x1, side_x2 = sc(1535), sc(2150)
+        center_x = (main_x1 + main_x2) // 2
 
-        def wrap(text, max_chars=58):
-            words = text.split()
-            lines, current = [], []
-            for word in words:
-                candidate = " ".join(current + [word])
-                if len(candidate) > max_chars and current:
-                    lines.append(" ".join(current))
-                    current = [word]
-                else:
-                    current.append(word)
-            if current:
-                lines.append(" ".join(current))
-            return "\n".join(lines)
+        def wrapped_lines(text, fnt, max_width):
+            result = []
+            for paragraph in str(text).split("\n"):
+                words = paragraph.split()
+                if not words:
+                    result.append("")
+                    continue
+                current = words[0]
+                for word in words[1:]:
+                    candidate = current + " " + word
+                    bbox = draw.textbbox((0, 0), candidate, font=fnt)
+                    if bbox[2] - bbox[0] <= max_width:
+                        current = candidate
+                    else:
+                        result.append(current)
+                        current = word
+                result.append(current)
+            return result
 
-        def box(x1, y1, x2, y2, text, header=None):
-            draw.rounded_rectangle((x1, y1, x2, y2), radius=14, outline="black", width=3, fill="white")
-            if header:
-                draw.text(((x1 + x2)//2, y1 + 16), header, anchor="ma", font=font(20, True), fill="black")
-                body_y = y1 + 52
-            else:
-                body_y = y1 + 24
-            max_chars = max(22, int((x2 - x1) / 13))
-            draw.multiline_text(((x1 + x2)//2, body_y), wrap(text, max_chars=max_chars), anchor="ma", align="center", font=box_font, fill="black", spacing=7)
+        def section_tag(y, text):
+            x1, x2 = sc(40), sc(285)
+            draw.rounded_rectangle((x1, y, x2, y + sc(64)), radius=sc(18), fill=navy)
+            draw.text(((x1 + x2) // 2, y + sc(32)), text, anchor="mm", font=section_font, fill=white)
 
-        def arrow(x, y1, y2):
-            draw.line((x, y1, x, y2 - 12), fill="black", width=4)
-            draw.polygon([(x, y2), (x - 10, y2 - 16), (x + 10, y2 - 16)], fill="black")
+        def draw_text_block(xc, y1, y2, lines, line_font, fill=text_color):
+            spacing = sc(8)
+            heights = []
+            for line in lines:
+                bb = draw.textbbox((0, 0), line or " ", font=line_font)
+                heights.append(bb[3] - bb[1])
+            total = sum(heights) + spacing * max(0, len(lines) - 1)
+            yy = y1 + ((y2 - y1) - total) // 2
+            for line, lh in zip(lines, heights):
+                draw.text((xc, yy), line, anchor="ma", font=line_font, fill=fill)
+                yy += lh + spacing
 
-        base_lines = "\n".join(f"{db}: n={n}" for db, n in sorted(counts["base_counts"].items(), key=lambda x: -x[1]))
-        y = 145
-        box(main_x1, y, main_x2, y + 205, f"Registros identificados nas bases (n={counts['identified']})\n{base_lines}", "IDENTIFICAÇÃO")
-        box(side_x1, y + 22, side_x2, y + 180, f"Duplicatas removidas (n={counts['duplicates']})")
-        arrow((main_x1 + main_x2)//2, y + 205, y + 250)
-
-        y = 395
-        box(main_x1, y, main_x2, y + box_h, f"Registros após deduplicação (n={counts['deduplicated']})", "PRÉ-TRIAGEM")
-        if counts["second_screen_applied"]:
-            side_text = (
-                f"Revisões sistemáticas/meta-análises identificadas e mantidas (n={counts['second_confirmed']})"
+        def box(x1, y1, x2, y2, text, fill=white, bold=False, accent=None, text_font=None):
+            draw.rounded_rectangle(
+                (x1, y1, x2, y2), radius=sc(24), fill=fill,
+                outline=border, width=max(1, sc(2))
             )
-            if counts["second_pending"]:
-                side_text += f"\nPendentes de confirmação: n={counts['second_pending']}"
-        else:
-            side_text = "2ª triagem classificatória de revisões/meta-análises ainda não executada"
-        box(side_x1, y - 8, side_x2, y + 175, side_text)
-        arrow((main_x1 + main_x2)//2, y + box_h, y + box_h + 45)
+            if accent:
+                draw.rounded_rectangle(
+                    (x1, y1, x1 + sc(16), y2), radius=sc(8), fill=accent, outline=accent
+                )
+            fnt = text_font or (box_bold if bold else box_font)
+            maxw = (x2 - x1) - sc(80)
+            lines = wrapped_lines(text, fnt, maxw)
+            draw_text_block((x1 + x2) // 2, y1, y2, lines, fnt)
 
-        y = 595
-        box(main_x1, y, main_x2, y + 175, f"Registros disponíveis para triagem de título/resumo (n={counts['screening']})", "TRIAGEM")
+        def multi_item_side_box(x1, y1, x2, y2, title, items, accent=navy):
+            draw.rounded_rectangle((x1, y1, x2, y2), radius=sc(24), fill=pale,
+                                   outline=border, width=max(1, sc(2)))
+            draw.rounded_rectangle((x1, y1, x1 + sc(16), y2), radius=sc(8), fill=accent, outline=accent)
+            title_lines = wrapped_lines(title, side_title_font, (x2 - x1) - sc(80))
+            yy = y1 + sc(22)
+            for ln in title_lines:
+                draw.text(((x1 + x2) // 2, yy), ln, anchor="ma", font=side_title_font, fill=text_color)
+                bb = draw.textbbox((0, 0), ln or " ", font=side_title_font)
+                yy += (bb[3] - bb[1]) + sc(8)
+            yy += sc(6)
+            draw.line((x1 + sc(32), yy, x2 - sc(32), yy), fill="#D5D9E0", width=max(1, sc(2)))
+            avail_top = yy + sc(16)
+            avail_bottom = y2 - sc(18)
+            n = max(1, len(items))
+            item_h = (avail_bottom - avail_top) // n
+            for i, item in enumerate(items):
+                iy1 = avail_top + i * item_h
+                iy2 = avail_top + (i + 1) * item_h if i < n - 1 else avail_bottom
+                item_lines = wrapped_lines(item, side_text_font, (x2 - x1) - sc(86))
+                draw_text_block((x1 + x2) // 2, iy1, iy2, item_lines, side_text_font)
+                if i < n - 1:
+                    draw.line((x1 + sc(34), iy2, x2 - sc(34), iy2), fill="#E5E7EB", width=max(1, sc(1)))
 
-        if full:
-            box(side_x1, y, side_x2, y + 175, f"Registros excluídos na triagem externa de título/resumo (n={counts['title_abstract_excluded']})")
-            arrow((main_x1 + main_x2)//2, y + 175, y + 220)
-            y = 815
-            box(main_x1, y, main_x2, y + box_h, f"Relatórios buscados para recuperação (n={counts['reports_sought']})", "ELEGIBILIDADE")
-            box(side_x1, y, side_x2, y + box_h, f"Relatórios não recuperados (n={counts['reports_not_retrieved']})")
-            arrow((main_x1 + main_x2)//2, y + box_h, y + box_h + 45)
+        def v_arrow(x, y1, y2):
+            draw.line((x, y1, x, y2 - sc(16)), fill=border, width=max(2, sc(4)))
+            draw.polygon([(x, y2), (x - sc(10), y2 - sc(18)), (x + sc(10), y2 - sc(18))], fill=border)
 
-            y = 1015
-            box(main_x1, y, main_x2, y + box_h, f"Relatórios avaliados em texto completo (n={counts['reports_assessed']})")
-            reason = counts["full_text_reasons"] or "Motivos não informados"
-            box(side_x1, y - 10, side_x2, y + 185, f"Relatórios excluídos após texto completo (n={counts['full_text_excluded']})\n{reason}")
-            arrow((main_x1 + main_x2)//2, y + box_h, y + box_h + 45)
+        def h_arrow(x1, y, x2):
+            draw.line((x1, y, x2 - sc(16), y), fill=border, width=max(2, sc(4)))
+            draw.polygon([(x2, y), (x2 - sc(18), y - sc(10)), (x2 - sc(18), y + sc(10))], fill=border)
 
-            y = 1220
-            box(main_x1, y, main_x2, y + box_h, f"Estudos incluídos na revisão (n={counts['studies_included']})", "INCLUSÃO")
-        else:
-            draw.text(
-                (width // 2, 850),
-                "Fluxo parcial: a triagem de título/resumo será realizada fora do programa.",
-                anchor="ma", font=font(22, True), fill="black"
-            )
+        main_h = sc(150)
+        side_h = sc(150)
+        y1 = sc(190)
+        y2 = sc(420)
+        y3 = sc(650)
+        y4 = sc(880)
+        y5 = sc(1110)
+        y6 = sc(1340)
 
-        draw.text((width // 2, height - 55), f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}", anchor="ma", font=small_font, fill="black")
-        image.save(output_path, format="PNG")
+        section_tag(y1 + sc(44), labels["identification"])
+        box(main_x1, y1, main_x2, y1 + main_h, labels["identified"].format(n=counts["identified"]), fill=blue, bold=True, accent=navy)
+        box(side_x1, y1, side_x2, y1 + side_h, labels["duplicates"].format(n=counts["duplicates"]), fill=pale, text_font=side_title_font)
+        h_arrow(main_x2, y1 + main_h // 2, side_x1)
+        v_arrow(center_x, y1 + main_h, y2)
+
+        section_tag(y2 + sc(44), labels["screening"])
+        box(main_x1, y2, main_x2, y2 + main_h, labels["screened"].format(n=counts["screening"]), fill=white, bold=True, accent=navy)
+        box(side_x1, y2, side_x2, y2 + side_h, labels["records_excluded"].format(n=counts["title_abstract_excluded"]), fill=pale, text_font=side_text_font)
+        h_arrow(main_x2, y2 + main_h // 2, side_x1)
+        v_arrow(center_x, y2 + main_h, y3)
+
+        box(main_x1, y3, main_x2, y3 + main_h, labels["reports_sought"].format(n=counts["reports_sought"]), fill=white, bold=True, accent=navy)
+        box(side_x1, y3, side_x2, y3 + side_h, labels["not_retrieved"].format(n=counts["reports_not_retrieved"]), fill=pale, text_font=side_text_font)
+        h_arrow(main_x2, y3 + main_h // 2, side_x1)
+        v_arrow(center_x, y3 + main_h, y4)
+
+        section_tag(y4 + sc(44), labels["eligibility"])
+        box(main_x1, y4, main_x2, y4 + main_h, labels["assessed"].format(n=counts["reports_assessed"]), fill=white, bold=True, accent=navy)
+        excluded_text = labels["reports_excluded"].format(n=counts["full_text_excluded"])
+        box(side_x1, y4, side_x2, y4 + side_h, excluded_text, fill=pale, text_font=side_text_font)
+        h_arrow(main_x2, y4 + main_h // 2, side_x1)
+        v_arrow(center_x, y4 + main_h, y5)
+
+        section_tag(y5 + sc(44), labels["included"])
+        box(main_x1, y5, main_x2, y5 + main_h, labels["studies_included"].format(n=counts["studies_included"]), fill=green, bold=True, accent=accent_green)
+        v_arrow(center_x, y5 + main_h, y6)
+        box(main_x1, y6, main_x2, y6 + main_h, labels["reports_included"].format(n=counts["reports_included"]), fill=green, bold=True, accent=accent_green)
+
+        if counts["triage_pending"]:
+            draw.rounded_rectangle((sc(290), sc(1515), sc(2150), sc(1595)), radius=sc(18), fill=warning_bg, outline=warning_border, width=max(1, sc(2)))
+            draw.text((W // 2, sc(1555)), labels["provisional"], anchor="mm", font=font(20, True), fill=warning_text)
+
+        footer_y = H - sc(48)
+        draw.line((sc(210), footer_y - sc(22), W - sc(80), footer_y - sc(22)), fill="#D0D5DD", width=max(1, sc(2)))
+        draw.text((sc(210), footer_y), labels["source"], anchor="la", font=small_font, fill=muted)
+        draw.text((W - sc(80), footer_y), labels["generated"].format(version=VERSION), anchor="ra", font=small_font, fill=muted)
+
+        return image
+
+    def export_prisma_png(self, output_path, language=None):
+        image = self.render_prisma_image(language=language, scale=1.0)
+        image.save(output_path, format="PNG", dpi=(300, 300), optimize=True)
+        return Path(output_path)
+
+    def export_prisma_jpg(self, output_path, language=None, quality=95):
+        image = self.render_prisma_image(language=language, scale=1.0).convert("RGB")
+        image.save(output_path, format="JPEG", quality=max(85, min(100, int(quality))), dpi=(300, 300), subsampling=0, optimize=True)
+        return Path(output_path)
+
+    def export_prisma_pdf(self, output_path, language=None):
+        image = self.render_prisma_image(language=language, scale=1.0).convert("RGB")
+        image.save(output_path, format="PDF", resolution=300.0)
         return Path(output_path)
 
     def open_prisma_window(self):
+        ui_lang = "en" if self.language_code == "en" else "pt"
+        ui = {
+            "pt": {
+                "no_data": "Nenhuma base foi processada.",
+                "preview": "Pré-visualização",
+                "summary": "Contagens automáticas",
+                "summary_txt": lambda c: (
+                    f"Registros identificados: {c['identified']}\n"
+                    f"Duplicatas removidas: {c['duplicates']}\n"
+                    f"Registros triados: {c['screening']}\n"
+                    f"Registros excluídos: {c['title_abstract_excluded']}\n"
+                    f"Pendentes na triagem: {c['triage_pending']}"
+                ),
+                "eligibility": "Elegibilidade e inclusão",
+                "rows": [
+                    ("records_excluded_title_abstract", "Excluídos na triagem (manual, se necessário):"),
+                    ("reports_not_retrieved", "Relatórios não recuperados:"),
+                    ("full_text_excluded", "Relatórios excluídos após texto completo:"),
+                    ("studies_included", "Estudos incluídos na revisão:"),
+                    ("reports_included", "Relatórios dos estudos incluídos:"),
+                ],
+                "reasons": "Motivos de exclusão em texto completo:",
+                "export": "Idioma e exportação",
+                "flow_lang": "Idioma do fluxograma:",
+                "update": "ATUALIZAR / PRÉ-VISUALIZAR",
+                "png": "EXPORTAR PNG — 300 DPI",
+                "jpg": "EXPORTAR JPG — ALTA QUALIDADE",
+                "pdf": "EXPORTAR PDF",
+                "excel": "EXPORTAR DADOS EXCEL",
+                "save_prisma": "Salvar fluxograma PRISMA",
+                "save_pdf": "Salvar PRISMA em PDF",
+                "save_excel": "Salvar dados do PRISMA",
+                "img_png": "Imagem PNG",
+                "img_jpg": "Imagem JPG",
+                "sheet": "Excel",
+                "invalid": "Use apenas números inteiros iguais ou maiores que zero.",
+                "updated": "Dados do PRISMA atualizados.",
+                "saved_png": "Fluxograma em alta resolução salvo em:\n{path}",
+                "saved_jpg": "Imagem JPG em alta qualidade salva em:\n{path}",
+                "saved_pdf": "PDF salvo em:\n{path}",
+                "saved_excel": "Dados salvos em:\n{path}",
+                "note": "As contagens de identificação, duplicatas e triagem são calculadas automaticamente. A classificação auxiliar de revisões/meta-análises não aparece como etapa do PRISMA, pois não remove registros. O detalhamento por base permanece disponível nos dados e na auditoria.",
+            },
+            "en": {
+                "no_data": "No database has been processed yet.",
+                "preview": "Preview",
+                "summary": "Automatic counts",
+                "summary_txt": lambda c: (
+                    f"Records identified: {c['identified']}\n"
+                    f"Duplicates removed: {c['duplicates']}\n"
+                    f"Records screened: {c['screening']}\n"
+                    f"Records excluded: {c['title_abstract_excluded']}\n"
+                    f"Pending screening: {c['triage_pending']}"
+                ),
+                "eligibility": "Eligibility and inclusion",
+                "rows": [
+                    ("records_excluded_title_abstract", "Excluded during screening (manual, if needed):"),
+                    ("reports_not_retrieved", "Reports not retrieved:"),
+                    ("full_text_excluded", "Reports excluded after full-text assessment:"),
+                    ("studies_included", "Studies included in the review:"),
+                    ("reports_included", "Reports of included studies:"),
+                ],
+                "reasons": "Reasons for full-text exclusion:",
+                "export": "Language and export",
+                "flow_lang": "Flowchart language:",
+                "update": "UPDATE / PREVIEW",
+                "png": "EXPORT PNG — 300 DPI",
+                "jpg": "EXPORT JPG — HIGH QUALITY",
+                "pdf": "EXPORT PDF",
+                "excel": "EXPORT EXCEL DATA",
+                "save_prisma": "Save PRISMA flow diagram",
+                "save_pdf": "Save PRISMA as PDF",
+                "save_excel": "Save PRISMA data",
+                "img_png": "PNG image",
+                "img_jpg": "JPG image",
+                "sheet": "Excel",
+                "invalid": "Use only integers greater than or equal to zero.",
+                "updated": "PRISMA data updated.",
+                "saved_png": "High-resolution flow diagram saved to:\n{path}",
+                "saved_jpg": "High-quality JPG image saved to:\n{path}",
+                "saved_pdf": "PDF saved to:\n{path}",
+                "saved_excel": "Data saved to:\n{path}",
+                "note": "Identification, duplicate-removal and screening counts are calculated automatically. The auxiliary review/meta-analysis classification is not shown as a PRISMA step because it does not remove records. Database-specific detail remains available in the data export and audit files.",
+            },
+        }[ui_lang]
+
         if self.all_df.empty:
-            self._showwarning("PRISMA", "Nenhuma base foi processada.")
+            self._showwarning("PRISMA", ui["no_data"])
             return
 
         win = tk.Toplevel(self)
         self.after_idle(lambda w=win: self._localize_widget_tree(w))
-        win.title("PRISMA automático")
-        win.geometry("800x700")
+        win.title("PRISMA 2020")
+        win.geometry("1180x820")
+        win.minsize(980, 700)
 
-        summary = ttk.LabelFrame(win, text="Contagens automáticas", padding=12)
-        summary.pack(fill="x", padx=10, pady=10)
+        outer = ttk.Frame(win, padding=10)
+        outer.pack(fill="both", expand=True)
+        outer.columnconfigure(0, weight=0)
+        outer.columnconfigure(1, weight=1)
+        outer.rowconfigure(0, weight=1)
+
+        controls = ttk.Frame(outer)
+        controls.grid(row=0, column=0, sticky="nsw", padx=(0, 10))
+        preview_frame = ttk.LabelFrame(outer, text=ui["preview"], padding=8)
+        preview_frame.grid(row=0, column=1, sticky="nsew")
+        preview_frame.rowconfigure(0, weight=1)
+        preview_frame.columnconfigure(0, weight=1)
+
+        summary = ttk.LabelFrame(controls, text=ui["summary"], padding=10)
+        summary.pack(fill="x", pady=(0, 8))
         summary_text = tk.StringVar()
 
         def update_summary_label():
             c = self.prisma_counts()
-            second = (
-                f"Revisões/meta-análises marcadas na 2ª triagem: {c['second_confirmed']} "
-                f"(pendentes: {c['second_pending']}; nenhum registro removido)"
-                if c["second_screen_applied"]
-                else "2ª triagem classificatória de revisões/meta-análises: ainda não executada"
-            )
-            summary_text.set(self.translate_literal(
-                f"Identificados: {c['identified']}\n"
-                f"Duplicatas removidas: {c['duplicates']}\n"
-                f"Após deduplicação: {c['deduplicated']}\n"
-                f"{second}\n"
-                f"Disponíveis para triagem de título/resumo: {c['screening']}"
-            ))
+            summary_text.set(ui["summary_txt"](c))
+
         ttk.Label(summary, textvariable=summary_text, justify="left", font=("Segoe UI", 10)).pack(anchor="w")
         update_summary_label()
 
-        later = ttk.LabelFrame(win, text="Etapas posteriores — números agregados opcionais", padding=12)
-        later.pack(fill="x", padx=10, pady=(0, 10))
+        later = ttk.LabelFrame(controls, text=ui["eligibility"], padding=10)
+        later.pack(fill="x", pady=(0, 8))
         vars_int = {
             "records_excluded_title_abstract": tk.StringVar(value=str(self.prisma_extra.get("records_excluded_title_abstract", 0))),
             "reports_not_retrieved": tk.StringVar(value=str(self.prisma_extra.get("reports_not_retrieved", 0))),
             "full_text_excluded": tk.StringVar(value=str(self.prisma_extra.get("full_text_excluded", 0))),
             "studies_included": tk.StringVar(value=str(self.prisma_extra.get("studies_included", 0))),
+            "reports_included": tk.StringVar(value=str(self.prisma_extra.get("reports_included", self.prisma_extra.get("studies_included", 0)))),
         }
-        labels = [
-            ("records_excluded_title_abstract", "Excluídos na triagem externa de título/resumo:"),
-            ("reports_not_retrieved", "Relatórios não recuperados:"),
-            ("full_text_excluded", "Relatórios excluídos após texto completo:"),
-            ("studies_included", "Estudos incluídos na revisão:"),
-        ]
-        for r, (key, label) in enumerate(labels):
-            ttk.Label(later, text=label).grid(row=r, column=0, sticky="w", pady=4)
-            ttk.Entry(later, textvariable=vars_int[key], width=10).grid(row=r, column=1, sticky="w", padx=8)
-        ttk.Label(later, text="Motivos das exclusões em texto completo:").grid(row=4, column=0, sticky="nw", pady=4)
-        reasons = tk.Text(later, height=5, width=58, wrap="word")
-        reasons.grid(row=4, column=1, sticky="ew", padx=8, pady=4)
+        for r, (key, label) in enumerate(ui["rows"]):
+            ttk.Label(later, text=label).grid(row=r, column=0, sticky="w", pady=3)
+            ttk.Entry(later, textvariable=vars_int[key], width=8).grid(row=r, column=1, sticky="w", padx=6)
+        ttk.Label(later, text=ui["reasons"]).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 2))
+        reasons = tk.Text(later, height=5, width=42, wrap="word")
+        reasons.grid(row=6, column=0, columnspan=2, sticky="ew")
         reasons.insert("1.0", clean(self.prisma_extra.get("full_text_reasons", "")))
-        later.columnconfigure(1, weight=1)
+
+        export_box = ttk.LabelFrame(controls, text=ui["export"], padding=10)
+        export_box.pack(fill="x")
+        prisma_language = tk.StringVar(value="English" if self.language_code == "en" else "Português")
+        ttk.Label(export_box, text=ui["flow_lang"]).grid(row=0, column=0, sticky="w")
+        lang_combo = ttk.Combobox(export_box, textvariable=prisma_language, state="readonly", width=15, values=["Português", "English"])
+        lang_combo.grid(row=0, column=1, sticky="w", padx=6, pady=3)
+
+        preview_label = ttk.Label(preview_frame, anchor="center")
+        preview_label.grid(row=0, column=0, sticky="nsew")
+        preview_label._prisma_photo = None
+
+        def selected_lang():
+            return "en" if prisma_language.get() == "English" else "pt"
 
         def save_values(show=False):
             try:
@@ -8833,45 +9622,102 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
                     self.prisma_extra[key] = value
                 self.prisma_extra["full_text_reasons"] = clean(reasons.get("1.0", "end"))
             except Exception:
-                self._showerror("PRISMA", "Use apenas números inteiros iguais ou maiores que zero.", parent=win)
+                self._showerror("PRISMA", ui["invalid"], parent=win)
                 return False
             update_summary_label()
             if show:
-                self._showinfo("PRISMA", "Contagens agregadas atualizadas.", parent=win)
+                self._showinfo("PRISMA", ui["updated"], parent=win)
             return True
 
-        buttons = ttk.Frame(win, padding=10)
-        buttons.pack(fill="x")
-        ttk.Button(buttons, text="ATUALIZAR DADOS", command=lambda: save_values(True)).pack(side="left", padx=4)
-
-        def generate():
+        def refresh_preview(*_):
             if not save_values(False):
                 return
+            try:
+                from PIL import ImageTk
+                img = self.render_prisma_image(language=selected_lang(), scale=0.38)
+                pw = max(520, preview_frame.winfo_width() - 20)
+                ph = max(620, preview_frame.winfo_height() - 20)
+                ratio = min(pw / img.width, ph / img.height, 1.0)
+                if ratio < 1.0:
+                    img = img.resize((max(1, int(img.width * ratio)), max(1, int(img.height * ratio))))
+                photo = ImageTk.PhotoImage(img)
+                preview_label.configure(image=photo, text="")
+                preview_label._prisma_photo = photo
+            except Exception as exc:
+                preview_label.configure(text=str(exc), image="")
+
+        def export_png():
+            if not save_values(False):
+                return
+            suffix = "EN" if selected_lang() == "en" else "PT"
             path = self._asksaveasfilename(
                 parent=win,
-                title="Salvar fluxograma PRISMA",
+                title=ui["save_prisma"],
                 defaultextension=".png",
-                initialfile="PRISMA_FLUXOGRAMA.png",
-                filetypes=[("Imagem PNG", "*.png")],
+                initialfile=f"PRISMA_2020_{suffix}.png",
+                filetypes=[(ui["img_png"], "*.png")],
             )
             if not path:
                 return
             try:
-                self.export_prisma_png(path)
+                self.export_prisma_png(path, language=selected_lang())
+                self.log_audit_event("PRISMA PNG EXPORTADO", path)
             except Exception as exc:
                 self._showerror("PRISMA", str(exc), parent=win)
                 return
-            self._showinfo("PRISMA", f"Fluxograma gerado em:\n{path}", parent=win)
+            self._showinfo("PRISMA", ui["saved_png"].format(path=path), parent=win)
+
+        def export_jpg():
+            if not save_values(False):
+                return
+            suffix = "EN" if selected_lang() == "en" else "PT"
+            path = self._asksaveasfilename(
+                parent=win,
+                title=ui["save_prisma"],
+                defaultextension=".jpg",
+                initialfile=f"PRISMA_2020_{suffix}.jpg",
+                filetypes=[(ui["img_jpg"], "*.jpg;*.jpeg")],
+            )
+            if not path:
+                return
+            try:
+                self.export_prisma_jpg(path, language=selected_lang())
+                self.log_audit_event("PRISMA JPG EXPORTADO", path)
+            except Exception as exc:
+                self._showerror("PRISMA", str(exc), parent=win)
+                return
+            self._showinfo("PRISMA", ui["saved_jpg"].format(path=path), parent=win)
+
+        def export_pdf():
+            if not save_values(False):
+                return
+            suffix = "EN" if selected_lang() == "en" else "PT"
+            path = self._asksaveasfilename(
+                parent=win,
+                title=ui["save_pdf"],
+                defaultextension=".pdf",
+                initialfile=f"PRISMA_2020_{suffix}.pdf",
+                filetypes=[("PDF", "*.pdf")],
+            )
+            if not path:
+                return
+            try:
+                self.export_prisma_pdf(path, language=selected_lang())
+                self.log_audit_event("PRISMA PDF EXPORTADO", path)
+            except Exception as exc:
+                self._showerror("PRISMA", str(exc), parent=win)
+                return
+            self._showinfo("PRISMA", ui["saved_pdf"].format(path=path), parent=win)
 
         def export_excel():
             if not save_values(False):
                 return
             path = self._asksaveasfilename(
                 parent=win,
-                title="Salvar dados do PRISMA",
+                title=ui["save_excel"],
                 defaultextension=".xlsx",
                 initialfile="PRISMA_DADOS.xlsx",
-                filetypes=[("Excel", "*.xlsx")],
+                filetypes=[(ui["sheet"], "*.xlsx")],
             )
             if not path:
                 return
@@ -8881,20 +9727,21 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
             except Exception as exc:
                 self._showerror("PRISMA", str(exc), parent=win)
                 return
-            self._showinfo("PRISMA", f"Dados salvos em:\n{path}", parent=win)
+            self._showinfo("PRISMA", ui["saved_excel"].format(path=path), parent=win)
 
-        ttk.Button(buttons, text="GERAR IMAGEM PNG", command=generate).pack(side="left", padx=4)
-        ttk.Button(buttons, text="EXPORTAR DADOS EXCEL", command=export_excel).pack(side="left", padx=4)
-        ttk.Label(
-            win,
-            text=(
-                "A triagem individual de título/resumo foi removida. O programa contabiliza automaticamente "
-                "a deduplicação e a marcação classificatória de revisões/meta-análises. Nenhum registro é removido na 2ª triagem. Os campos acima servem apenas para "
-                "inserir números agregados das etapas feitas fora do programa."
-            ),
-            wraplength=740,
-            justify="left",
-        ).pack(fill="x", padx=14, pady=8)
+        ttk.Button(export_box, text=ui["update"], command=refresh_preview).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 3))
+        ttk.Button(export_box, text=ui["png"], command=export_png).grid(row=2, column=0, columnspan=2, sticky="ew", pady=3)
+        ttk.Button(export_box, text=ui["jpg"], command=export_jpg).grid(row=3, column=0, columnspan=2, sticky="ew", pady=3)
+        ttk.Button(export_box, text=ui["pdf"], command=export_pdf).grid(row=4, column=0, columnspan=2, sticky="ew", pady=3)
+        ttk.Button(export_box, text=ui["excel"], command=export_excel).grid(row=5, column=0, columnspan=2, sticky="ew", pady=3)
+        export_box.columnconfigure(0, weight=1)
+        export_box.columnconfigure(1, weight=1)
+
+        note = ttk.Label(controls, text=ui["note"], wraplength=390, justify="left")
+        note.pack(fill="x", pady=8)
+
+        lang_combo.bind("<<ComboboxSelected>>", refresh_preview)
+        win.after(180, refresh_preview)
 
     # --------------------------------------------------------
     # Exportação
@@ -8913,8 +9760,8 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
 
         clean_df.columns = [
             "Autores", "Título do estudo", "Revista", "Ano", "DOI", "ID original",
-            "2ª triagem - status", "2ª triagem - classificação", "Detectado em",
-            "Evidência da 2ª triagem", "Origem da classificação",
+            "Classificação bibliográfica - status", "Classificação bibliográfica - tipo", "Detectado em",
+            "Evidência da classificação", "Origem da classificação",
         ]
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -9096,12 +9943,12 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
         ]].copy()
         final.columns = [
             "Base de origem", "Autores", "Título do estudo", "Resumo", "Revista",
-            "Ano", "DOI", "ID original", "2ª triagem - status",
-            "2ª triagem - classificação", "Detectado em", "Evidência da 2ª triagem",
+            "Ano", "DOI", "ID original", "Classificação bibliográfica - status",
+            "Classificação bibliográfica - tipo", "Detectado em", "Evidência da classificação",
             "Origem da classificação",
         ]
 
-        marked = final[final["2ª triagem - status"].astype(str).str.strip() != ""].copy()
+        marked = final[final["Classificação bibliográfica - status"].astype(str).str.strip() != ""].copy()
 
         # Legenda simples para que o usuário identifique imediatamente as cores.
         legend_rows = []
@@ -9120,7 +9967,7 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             final.to_excel(writer, sheet_name="BASE_FINAL", index=False)
             if not marked.empty:
-                marked.to_excel(writer, sheet_name="2_TRIAGEM_REVISOES_META", index=False)
+                marked.to_excel(writer, sheet_name="CLASSIFICACAO_REVISOES_META", index=False)
             legend_df.to_excel(writer, sheet_name="LEGENDA_CORES", index=False)
 
             from openpyxl.styles import PatternFill, Font, Alignment
@@ -9136,8 +9983,8 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
 
             # Formata as duas planilhas com registros.
             data_sheet_names = ["BASE_FINAL"]
-            if "2_TRIAGEM_REVISOES_META" in writer.book.sheetnames:
-                data_sheet_names.append("2_TRIAGEM_REVISOES_META")
+            if "CLASSIFICACAO_REVISOES_META" in writer.book.sheetnames:
+                data_sheet_names.append("CLASSIFICACAO_REVISOES_META")
 
             for sheet_name in data_sheet_names:
                 sheet = writer.book[sheet_name]
@@ -9319,9 +10166,9 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
                 "de comparação, mesmo quando já foram removidos do banco final."
             ),
             "",
-            "2ª TRIAGEM — REVISÕES SISTEMÁTICAS / META-ANÁLISES",
+            "CLASSIFICAÇÃO BIBLIOGRÁFICA — REVISÕES SISTEMÁTICAS / META-ANÁLISES",
             (
-                f"- Status: {'executada' if self.second_screen_applied else 'não executada'}."
+                f"- Status da classificação bibliográfica: {'executada' if self.second_screen_applied else 'não executada'}."
             ),
             (
                 f"- Confirmados como revisão/meta: {self.second_screen_stats()['confirmed'] if self.second_screen_applied else 0}."
@@ -9329,16 +10176,25 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
             (
                 f"- Pendentes para revisar: {self.second_screen_stats()['pending'] if self.second_screen_applied else 0}."
             ),
-            "- Removidos nesta etapa: 0 (a 2ª triagem é somente classificatória).",
+            "- Removidos nesta etapa: 0 (esta função é apenas classificatória e não altera a seleção dos estudos).",
             (
                 f"- Registros disponíveis para triagem de título/resumo: {len(self.post_second_screen_df())}."
             ),
+            "",
+            "TRIAGEM DE TÍTULO E RESUMO",
+            f"- Incluídos: {self.triage_stats()['included']}.",
+            f"- Excluídos: {self.triage_stats()['excluded']}.",
+            f"- Talvez: {self.triage_stats()['maybe']}.",
+            f"- Pendentes: {self.triage_stats()['pending']}.",
+            "- As decisões são armazenadas no projeto e alimentam automaticamente o PRISMA.",
             "",
             "ARQUIVOS EXPORTADOS",
             "- Excel limpo separado de cada base, com colunas de marcação da 2ª triagem.",
             "- COMPARACAO_DUPLICATAS.xlsx (inclui aba RESUMO_BASES).",
             "- BASE_FINAL_PARA_TRIAGEM.xlsx (todos os registros deduplicados são mantidos; inclui classificação de revisão/meta e aba específica da 2ª triagem).",
-            "- PRISMA_FLUXOGRAMA.png (deduplicação automática + marcação classificatória informativa da 2ª triagem).",
+            "- TRIAGEM_TITULO_RESUMO.xlsx (decisões individuais + resumo por base).",
+            "- TABELA_EXTRACAO_ESTUDOS_INCLUIDOS.docx (quando houver estudos incluídos).",
+            "- PRISMA_FLUXOGRAMA.png/.jpg (fluxograma PRISMA 2020 em alta resolução).",
             "- PRISMA_DADOS.xlsx (contagens auditáveis do fluxo e resumo por base).",
             "- AUDITORIA_REPRODUTIBILIDADE.xlsx/.txt (arquivos, parâmetros, decisões e histórico).",
             "- Menu Bibliometria: mesclagem conservadora de WoS/Embase/Scopus e exportação separada de PubMed.",
@@ -9386,12 +10242,24 @@ cat("OK:", nrow(M), "registros salvos em BIBLIOSHINY_PRONTO.RData\n")
                 self.export_final_excel(folder)
             )
 
+            self.sync_triage_df()
+            created.append(
+                self.export_triage_excel(Path(folder) / "TRIAGEM_TITULO_RESUMO.xlsx")
+            )
+            if self.triage_stats()["included"] > 0:
+                created.append(
+                    self.export_included_studies_word(Path(folder) / "TABELA_EXTRACAO_ESTUDOS_INCLUIDOS.docx")
+                )
+
             created.append(
                 self.export_report_txt(folder)
             )
 
             created.append(
                 self.export_prisma_png(Path(folder) / "PRISMA_FLUXOGRAMA.png")
+            )
+            created.append(
+                self.export_prisma_jpg(Path(folder) / "PRISMA_FLUXOGRAMA.jpg")
             )
             created.append(
                 self.export_prisma_data_excel(Path(folder) / "PRISMA_DADOS.xlsx")
